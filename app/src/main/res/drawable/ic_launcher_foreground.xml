@@ -1,0 +1,49 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Knight Body & Mane with Gold Gradient -->
+    <path
+        android:pathData="M 36,78 L 72,78 L 70,72 L 67,69 C 67,69 69,57 68,50 C 67,43 62,37 57,32 C 55,30 52,27 49,27 C 47,27 45,29 46,32 C 43,32 39,34 38,37 C 37,38 38,40 40,40 C 37,42 35,46 36,49 C 37,51 40,50 42,50 C 38,53 36,57 37,61 C 38,65 41,67 43,67 C 41,70 38,72 36,78 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="36"
+                android:startY="27"
+                android:endX="72"
+                android:endY="78"
+                android:type="linear">
+                <item android:color="#FDE047" android:offset="0.0" />
+                <item android:color="#EAB308" android:offset="0.5" />
+                <item android:color="#CA8A04" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Knight Pedestal Base -->
+    <path
+        android:pathData="M 32,78 L 76,78 L 74,83 L 34,83 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="78"
+                android:endX="76"
+                android:endY="83"
+                android:type="linear">
+                <item android:color="#FEF08A" android:offset="0.0" />
+                <item android:color="#EAB308" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Knight Eye Highlight & Snout Definition -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M 45,39 A 2.2,2.2 0 1,0 45,34.6 A 2.2,2.2 0 1,0 45,39 Z" />
+    <path
+        android:fillColor="#FEF08A"
+        android:pathData="M 45.6,36.2 A 0.8,0.8 0 1,0 45.6,34.6 A 0.8,0.8 0 1,0 45.6,36.2 Z" />
+    <!-- Chest / Mane highlights -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M 57,36 C 53,40 50,47 50,54 C 50,60 54,66 59,71 L 63,69 C 60,63 56,58 56,52 C 56,46 58,40 62,36 Z" />
+</vector>

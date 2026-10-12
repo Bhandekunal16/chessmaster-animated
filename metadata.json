@@ -1,0 +1,6 @@
+{
+  "name": "Grandmaster Chess",
+  "description": "Modern chess game with unique piece animations, AI opponent, PGN export, and timer controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
