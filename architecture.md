@@ -1,30 +1,30 @@
 # Architecture and Project Layout
 
-Grandmaster Chess is a single-module Android application built with Kotlin, Jetpack Compose, and a presentation/state layer centered on `ChessViewModel`.
+Grandmaster Chess is a modern Android application built with Kotlin, Jetpack Compose, Coroutines, StateFlow, and a clean MVVM architecture with extracted domain controllers and repositories.
 
-## High-level shape
+## High-Level Architecture
 
 ```text
 MainActivity
-    |
-    v
-ChessScreen (Compose UI)
-    |
-    | user actions / StateFlow collection
-    v
-ChessViewModel
-    |-- ChessEngine  -> legal moves, state transitions, game results
-    |-- ChessAI      -> move search and evaluation
-    |-- animation    -> moving/captured-piece and impact-effect state
-    |-- audio        -> sound and haptic feedback
-    |-- SharedPreferences -> persisted settings
-    v
-GameState, Move, Piece, and settings models
+    │
+    ▼
+ChessScreen (Jetpack Compose UI)
+    │
+    │ UI Actions / StateFlow Observation
+    ▼
+ChessViewModel (Presentation Coordination)
+    ├── SettingsRepository   ──> Persisted settings & preferences
+    ├── GameController       ──> Coordinates game state, turns, AI orchestration, moves
+    │       ├── ChessEngine  ──> Rules engine, legal moves, validation, PGN
+    │       ├── ChessAI      ──> Minimax move search & evaluation
+    │       └── GameClock    ──> Timers, active clock switching, timeouts
+    ├── PieceAnimation       ──> Interpolation paths & capture impact effects
+    └── ChessSoundPlayer     ──> Audio playback & haptic feedback
 ```
 
-`MainActivity` creates the view model and renders `ChessScreen`. The screen collects view-model `StateFlow`s and renders the board, player panels, move history, controls, and dialogs. User input travels back to the view model, which coordinates rule validation, animations, AI turns, clocks, persistence, and feedback.
+`MainActivity` initializes `ChessViewModel` with constructor dependency injection (`@JvmOverloads` for Android lifecycle factory compatibility). `ChessScreen` observes immutable `StateFlow` streams and emits user actions.
 
-## Repository layout
+## Repository Layout
 
 ```text
 .
@@ -32,62 +32,82 @@ GameState, Move, Piece, and settings models
 │   ├── build.gradle.kts                 # Android module configuration and dependencies
 │   └── src/
 │       ├── main/
-│       │   ├── AndroidManifest.xml       # Application/activity declaration
+│       │   ├── AndroidManifest.xml       # Application & activity declarations
 │       │   ├── java/com/example/
-│       │   │   ├── MainActivity.kt        # Compose application entry point
+│       │   │   ├── MainActivity.kt        # Application entry point and theme host
 │       │   │   ├── chess/
-│       │   │   │   ├── animation/         # Piece paths and capture-impact effects
-│       │   │   │   ├── audio/             # Sound and haptic playback
-│       │   │   │   ├── engine/            # Rules engine and computer opponent
-│       │   │   │   ├── model/             # Immutable game, move, piece, and settings data
-│       │   │   │   ├── ui/                # Screen, board, controls, dialogs, renderers
-│       │   │   │   │   └── piece_sets/    # Canvas renderers for piece-set styles
-│       │   │   │   └── viewmodel/         # UI state and game orchestration
-│       │   │   └── ui/theme/              # App Material theme, colors, and typography
-│       │   │   └── res/                   # Icons, colors, strings, XML configuration
-│       │   ├── test/                      # Local unit and Robolectric tests
-│       │   └── androidTest/               # Instrumented Android tests
+│       │   │   │   ├── animation/         # Piece trajectories and particle effect models
+│       │   │   │   ├── audio/             # Sound player and haptic feedback
+│       │   │   │   ├── engine/            # Rules, AI, clock, and game controller
+│       │   │   │   │   ├── ChessEngine.kt     # Legal moves, board state, rules, PGN
+│       │   │   │   │   ├── ChessAI.kt         # AI search, evaluation, heuristics
+│       │   │   │   │   ├── GameClock.kt       # Clock ticker, time controls, timeout
+│       │   │   │   │   └── GameController.kt  # Game orchestration & AI job lifecycle
+│       │   │   │   ├── model/             # Immutable pieces, squares, moves, GameState, GameSettings
+│       │   │   │   ├── repository/        # SettingsRepository & SharedPreferences implementation
+│       │   │   │   │   └── SettingsRepository.kt
+│       │   │   │   ├── ui/                # Compose screens, board, player panels, dialogs
+│       │   │   │   │   └── piece_sets/    # Custom Canvas renderers for piece themes
+│       │   │   │   └── viewmodel/         # ChessViewModel presentation layer
+│       │   │   └── ui/theme/              # Material 3 colors, typography, and shapes
+│       │   └── res/                       # Resource drawables, launcher icons, strings
+│       └── test/                          # Comprehensive local unit tests (Robolectric / JUnit 4)
+│           └── java/com/example/chess/
+│               ├── engine/                # GameClockTest, GameControllerTest
+│               ├── repository/            # SettingsRepositoryTest
+│               └── viewmodel/             # ChessViewModelTest
 ├── gradle/
-│   ├── libs.versions.toml                # Version catalog
-│   └── wrapper/                          # Gradle Wrapper files
-├── build.gradle.kts                      # Root build configuration
-├── settings.gradle.kts                   # Included modules and repositories
-├── gradlew / gradlew.bat                 # Gradle Wrapper launchers
-├── build.debug.sh                        # Creates a debug keystore, then builds debug APK
-├── README.md                             # Product features
-└── ARCH.md                               # This document
+│   └── libs.versions.toml                # Gradle Version Catalog
+├── build.gradle.kts                      # Root Gradle configuration
+├── settings.gradle.kts                   # Included modules and repository setup
+├── architecture.md                       # Architecture and project layout documentation
+└── README.md                             # Application overview and feature guide
 ```
 
-## Core packages
+## Core Packages and Components
 
-| Package | Responsibility |
-| --- | --- |
-| `chess.model` | Defines the board domain: pieces, squares, moves, castling rights, `GameState`, and configurable game settings. |
-| `chess.engine` | Generates and applies moves, enforces chess rules, identifies end conditions, and provides the minimax-based AI. |
-| `chess.viewmodel` | Owns observable UI/game state and handles move selection, turn flow, timers, undo/redo, PGN generation, settings, and dialogs. |
-| `chess.ui` | Contains Compose components for the game screen, board, player panels, action bar, settings, theme selector, and dialogs. |
-| `chess.ui.piece_sets` | Draws the different visual piece styles on a Compose canvas. |
-| `chess.animation` | Calculates trajectories and temporary visual state for moves, captures, castling, and impact particles. |
-| `chess.audio` | Plays move/capture feedback and triggers haptics when enabled. |
-| `ui.theme` | Applies the application-wide Compose color and typography theme. |
+| Package | Component / Class | Responsibility |
+| --- | --- | --- |
+| `chess.model` | `GameState`, `Piece`, `Square`, `Move`, `GameSettings` | Immutable board domain definitions, time controls, and configurable preferences. |
+| `chess.engine` | `ChessEngine` | Generates pseudo-legal/legal moves, enforces chess rules, handles castling, en passant, promotions, checks, and game termination conditions. |
+| `chess.engine` | `ChessAI` | Minimax engine with alpha-beta pruning and piece-square evaluation for Novice, Intermediate, and Master levels. |
+| `chess.engine` | `GameClock` | Owns timekeeping coroutines, remaining time StateFlow, active-turn switching, pause/resume, and timeout detection. |
+| `chess.engine` | `GameController` | Central coordinator of game operations: handles player moves, coordinates asynchronous AI computation, manages undo/redo, restarts, and preserves state consistency. |
+| `chess.repository` | `SettingsRepository` | Abstract interface and `SharedPreferencesSettingsRepository` implementation for persisting user preferences. |
+| `chess.viewmodel` | `ChessViewModel` | Presentation layer coordinator: exposes read-only StateFlows to Compose, manages square selection, dialog visibility, pawn promotion prompts, board flip orientation, animation orchestration, and sound dispatch. |
+| `chess.ui` | `ChessScreen`, `ChessBoard`, `ChessPlayerPanels`, `ChessControls` | Jetpack Compose UI rendering the board, captured pieces, clocks, history, and action controls. |
+| `chess.ui.piece_sets` | `ModernPieceRenderer`, `StauntonPieceRenderer`, `ThemedPieceRenderer` | High-fidelity canvas drawing implementations for all 10 piece visual styles. |
+| `chess.animation` | `PieceAnimation` | Calculates smooth interpolation paths, capture velocities, and impact particle vectors. |
+| `chess.audio` | `ChessSoundPlayer` | Plays procedural sound synthesis and haptic vibrations for moves, captures, checks, and game endings. |
 
-## Main game flow
+## Separation of Responsibilities & State Flow
 
-1. A player taps a board square in `ChessBoard`.
-2. `ChessViewModel` asks `ChessEngine` for legal moves and records the selection or chosen move.
-3. The view model runs the move animation, sound, and haptic feedback, then applies the move through `ChessEngine`.
-4. It evaluates the updated state for check, checkmate, stalemate, or draw conditions.
-5. In player-vs-computer mode, it invokes `ChessAI` on a coroutine and animates the selected reply.
-6. Updated `StateFlow` values cause `ChessScreen` and its child composables to recompose.
+1. **User Interaction**:
+   - The user taps a square on `ChessBoard`.
+   - The UI delegates to `ChessViewModel.onSquareClicked(square)`.
 
-## State ownership
+2. **Presentation Handling**:
+   - `ChessViewModel` computes legal moves for the selected piece and manages selection state.
+   - When a valid destination is selected, the ViewModel triggers move animations via `_animatedPiece` and initiates sound/haptics.
 
-The view model is the single owner of mutable application state. Its public `StateFlow`s expose:
+3. **Game Orchestration (`GameController`)**:
+   - The move is dispatched to `gameController.makeMove(move)`.
+   - `GameController` executes the move in `ChessEngine`, toggles `GameClock` to the opponent, and updates `_gameState`.
+   - If playing in Player-vs-Computer mode, `GameController` cancels any obsolete AI job and launches a structured coroutine on `Dispatchers.Default` for `ChessAI.findBestMove()`.
+   - Stale AI computations are automatically discarded if the game was restarted, undone, or modified before the AI completed its search.
 
-- game and settings data;
-- selected square and legal destinations;
-- animation, capture, and impact-effect state;
-- AI-thinking and board-orientation state; and
-- dialog visibility and pending pawn-promotion state.
+4. **Clocks and Timers (`GameClock`)**:
+   - Operates independent ticker flows using structured coroutines.
+   - Triggers timeouts deterministically and notifies `GameController` when a player's flag falls.
 
-Settings are stored in `SharedPreferences` and loaded when `ChessViewModel` is created. Game actions and visual feedback remain in memory for the active session.
+5. **Settings & Persistence (`SettingsRepository`)**:
+   - Read/write access to user preferences (board theme, piece theme, sound, haptics, timer settings, AI level) is managed through `SettingsRepository`.
+   - Storage details (`SharedPreferences`) are completely decoupled from ViewModel presentation logic.
+
+## Testing Architecture
+
+Comprehensive local JVM unit tests are organized by layer:
+- **`GameClockTest`**: Verifies starting, stopping, active player toggling, increment logic, pause/resume, reset, timeout events, and coroutine cancellation.
+- **`GameControllerTest`**: Verifies player moves, turn transitions, AI move execution, undo/redo stacks, restart during active AI computation, rejection of stale AI moves, and game-over transitions.
+- **`SettingsRepositoryTest`**: Verifies loading defaults, persisting updates, and schema compatibility.
+- **`ChessViewModelTest`**: Verifies UI state flows, square selections, promotion dialog flows, board orientation toggles, factory instantiation (`AndroidViewModelFactory`), and delegation to underlying controllers.
