@@ -2,31 +2,48 @@ package com.example.chess.viewmodel
 
 import android.app.Application
 import android.content.Context
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.animation.*
 import com.example.chess.audio.ChessSoundPlayer
-import com.example.chess.engine.ChessAI
-import com.example.chess.engine.ChessEngine
+import com.example.chess.engine.GameClock
+import com.example.chess.engine.GameController
 import com.example.chess.model.*
+import com.example.chess.repository.SettingsRepository
+import com.example.chess.repository.SharedPreferencesSettingsRepository
+import com.example.chess.types.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import com.example.chess.types.*
 
-class ChessViewModel(application: Application) : AndroidViewModel(application) {
+/**
+ * Presentation ViewModel for Grandmaster Chess.
+ *
+ * Responsibilities:
+ * - Presentation state management (selections, animations, dialogs, visual effects).
+ * - UI interaction processing and event dispatching.
+ * - Delegating core chess operations to [GameController].
+ * - Delegating user preferences to [SettingsRepository].
+ * - Coordinating visual animation interpolations and sound effects.
+ */
+class ChessViewModel @JvmOverloads constructor(
+    application: Application,
+    private val settingsRepository: SettingsRepository = SharedPreferencesSettingsRepository(
+        application.getSharedPreferences(SharedPreferencesSettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+    ),
+    private val gameController: GameController = GameController(),
+    private val soundPlayer: ChessSoundPlayer = ChessSoundPlayer(application)
+) : AndroidViewModel(application) {
 
-    private val prefs = application.getSharedPreferences("grandmaster_chess_prefs", Context.MODE_PRIVATE)
-    private val soundPlayer = ChessSoundPlayer(application)
+    // Domain state delegated to GameController and SettingsRepository
+    val gameState: StateFlow<GameState> = gameController.gameState
+    val settings: StateFlow<GameSettings> = settingsRepository.settings
+    val isThinking: StateFlow<Boolean> = gameController.isThinking
 
-    private val _gameState = MutableStateFlow(ChessEngine.createInitialState())
-    val gameState: StateFlow<GameState> = _gameState.asStateFlow()
-
-    private val _settings = MutableStateFlow(GameSettings())
-    val settings: StateFlow<GameSettings> = _settings.asStateFlow()
-
+    // Presentation-only state
     private val _selectedSquare = MutableStateFlow<Square?>(null)
     val selectedSquare: StateFlow<Square?> = _selectedSquare.asStateFlow()
 
@@ -44,9 +61,6 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _impactEffect = MutableStateFlow<BoardImpactEffect?>(null)
     val impactEffect: StateFlow<BoardImpactEffect?> = _impactEffect.asStateFlow()
-
-    private val _isThinking = MutableStateFlow(false)
-    val isThinking: StateFlow<Boolean> = _isThinking.asStateFlow()
 
     private val _isFlipped = MutableStateFlow(false)
     val isFlipped: StateFlow<Boolean> = _isFlipped.asStateFlow()
@@ -66,103 +80,31 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
     private val _showPgnDialog = MutableStateFlow(false)
     val showPgnDialog: StateFlow<Boolean> = _showPgnDialog.asStateFlow()
 
-    private var timerJob: Job? = null
-    private var aiJob: Job? = null
     private var animationJob: Job? = null
 
     init {
-        loadSettings()
-        startTimerIfNeeded()
+        // Synchronize initial time control
+        val initialTimeControl = settingsRepository.settings.value.timeControl
+        if (initialTimeControl != TimeControl.UNLIMITED) {
+            gameController.restartGame(initialTimeControl)
+        }
+
+        // Listen for game-over state transitions (e.g., timeout or checkmate)
+        viewModelScope.launch {
+            gameController.gameState.collect { state ->
+                if (state.isGameOver && !_showGameOverDialog.value) {
+                    _showGameOverDialog.value = true
+                }
+            }
+        }
     }
 
-    private fun loadSettings() {
-        val themeOrdinal = prefs.getInt("theme", BoardTheme.CLASSIC_WOOD.ordinal)
-        val pieceSetOrdinal = prefs.getInt("piece_set", PieceSet.CLASSIC_STAUNTON.ordinal)
-        val modeOrdinal = prefs.getInt("mode", GameMode.PVC.ordinal)
-        val diffOrdinal = prefs.getInt("difficulty", AIDifficulty.MEDIUM.ordinal)
-        val speedOrdinal = prefs.getInt("speed", AnimationSpeed.NORMAL.ordinal)
-        val sound = prefs.getBoolean("sound", true)
-        val haptics = prefs.getBoolean("haptics", true)
-        val is3D = prefs.getBoolean("is3D", false)
-        val syncEffects = prefs.getBoolean("sync_theme_effects", true)
-
-        val loaded = GameSettings(
-            mode = GameMode.values().getOrElse(modeOrdinal) { GameMode.PVC },
-            aiDifficulty = AIDifficulty.values().getOrElse(diffOrdinal) { AIDifficulty.MEDIUM },
-            boardTheme = BoardTheme.values().getOrElse(themeOrdinal) { BoardTheme.CLASSIC_WOOD },
-            pieceSet = PieceSet.values().getOrElse(pieceSetOrdinal) { PieceSet.CLASSIC_STAUNTON },
-            animationSpeed = AnimationSpeed.values().getOrElse(speedOrdinal) { AnimationSpeed.NORMAL },
-            soundEnabled = sound,
-            hapticsEnabled = haptics,
-            is3DView = is3D,
-            syncThemeEffects = syncEffects
-        )
-        _settings.value = loaded
-    }
-
-    fun updateSettings(newSettings: GameSettings) {
-        _settings.value = newSettings
-        prefs.edit()
-            .putInt("theme", newSettings.boardTheme.ordinal)
-            .putInt("piece_set", newSettings.pieceSet.ordinal)
-            .putInt("mode", newSettings.mode.ordinal)
-            .putInt("difficulty", newSettings.aiDifficulty.ordinal)
-            .putInt("speed", newSettings.animationSpeed.ordinal)
-            .putBoolean("sound", newSettings.soundEnabled)
-            .putBoolean("haptics", newSettings.hapticsEnabled)
-            .putBoolean("is3D", newSettings.is3DView)
-            .putBoolean("sync_theme_effects", newSettings.syncThemeEffects)
-            .apply()
-
-        _showSettingsDialog.value = false
-    }
-
-    fun openThemeDialog() {
-        _showThemeDialog.value = true
-    }
-
-    fun closeThemeDialog() {
-        _showThemeDialog.value = false
-    }
-
-    fun resetToDefaultTheme() {
-        updateSettings(
-            _settings.value.copy(
-                boardTheme = BoardTheme.CLASSIC_WOOD,
-                pieceSet = PieceSet.CLASSIC_STAUNTON,
-                syncThemeEffects = true
-            )
-        )
-    }
-
-    fun toggleFlip() {
-        _isFlipped.update { !it }
-    }
-
-    fun openSettings() {
-        _showSettingsDialog.value = true
-    }
-
-    fun closeSettings() {
-        _showSettingsDialog.value = false
-    }
-
-    fun openPgn() {
-        _showPgnDialog.value = true
-    }
-
-    fun closePgn() {
-        _showPgnDialog.value = false
-    }
-
-    fun dismissGameOver() {
-        _showGameOverDialog.value = false
-    }
+    // ==================== User Actions ====================
 
     fun onSquareClicked(square: Square) {
-        if (_isThinking.value || animationJob?.isActive == true || _gameState.value.isGameOver) return
+        if (isThinking.value || animationJob?.isActive == true || gameState.value.isGameOver) return
 
-        val state = _gameState.value
+        val state = gameState.value
         val currentSelected = _selectedSquare.value
 
         // Check if user clicked a destination square for a legal move
@@ -187,7 +129,7 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
         val clickedPiece = state.getPiece(square)
         if (clickedPiece != null && clickedPiece.color == state.activeColor) {
             _selectedSquare.value = square
-            _legalMovesForSelected.value = ChessEngine.getLegalMoves(state, square)
+            _legalMovesForSelected.value = gameController.getLegalMoves(square)
         } else {
             _selectedSquare.value = null
             _legalMovesForSelected.value = emptyList()
@@ -211,12 +153,12 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun performMoveWithAnimation(move: Move, onComplete: () -> Unit) {
-        val speed = _settings.value.animationSpeed
-        val isSound = _settings.value.soundEnabled
-        val isHaptics = _settings.value.hapticsEnabled
+        val currentSettings = settings.value
+        val speed = currentSettings.animationSpeed
+        val isSound = currentSettings.soundEnabled
+        val isHaptics = currentSettings.hapticsEnabled
 
         if (speed == AnimationSpeed.OFF) {
-            // Instant move without animation
             applyAndPlaySound(move, isSound, isHaptics)
             onComplete()
             return
@@ -233,14 +175,14 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
             val startTime = System.currentTimeMillis()
             val totalDuration = (baseDurationMs * speed.durationMultiplier).toLong()
 
-            // Sound on move start
+            // Play move initiation audio
             if (move.isCapture) {
                 soundPlayer.playCapture(move.piece.type, isSound, isHaptics)
             } else {
                 soundPlayer.playMove(move.piece.type, isSound, isHaptics)
             }
 
-            // Setup defeated piece animation if capture
+            // Defeated piece dissolve effect
             val capturedPiece = move.capturedPiece
             val defeatedInitial = if (capturedPiece != null) {
                 DefeatedPieceState(
@@ -259,7 +201,7 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                             else -> ImpactType.PAWN_SPARK
                         },
                         isWhite = move.piece.color == PieceColor.WHITE,
-                        themeAccentColor = if (_settings.value.syncThemeEffects) androidx.compose.ui.graphics.Color(_settings.value.boardTheme.accentColor) else null
+                        themeAccentColor = if (currentSettings.syncThemeEffects) Color(currentSettings.boardTheme.accentColor) else null
                     )
                 )
             } else null
@@ -288,7 +230,6 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                 val elapsed = System.currentTimeMillis() - startTime
                 val rawProgress = (elapsed.toFloat() / totalDuration).coerceIn(0f, 1f)
 
-                // Update moving piece
                 _animatedPiece.value = PieceAnimationCalculator.calculate(
                     piece = move.piece,
                     from = move.from,
@@ -297,9 +238,8 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                     isCapture = move.isCapture
                 )
 
-                // Update castling rook if any
                 if (castlingRookFrom != null && castlingRookTo != null) {
-                    val rook = _gameState.value.getPiece(castlingRookFrom)
+                    val rook = gameState.value.getPiece(castlingRookFrom)
                     if (rook != null) {
                         _castlingRookPiece.value = PieceAnimationCalculator.calculate(
                             piece = rook,
@@ -312,7 +252,6 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Update defeated piece dissolving
                 if (defeatedInitial != null) {
                     val defP = (rawProgress * 1.3f).coerceIn(0f, 1f)
                     _defeatedPiece.value = defeatedInitial.copy(
@@ -323,7 +262,6 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                // Impact effect (sparks & shockwave on capture landing)
                 if (move.isCapture && rawProgress >= 0.5f) {
                     val impactProg = ((rawProgress - 0.5f) / 0.5f).coerceIn(0f, 1f)
                     _impactEffect.value = BoardImpactEffect(
@@ -346,7 +284,7 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
                 delay(16)
             }
 
-            // Clear animated layers
+            // Clear visual animated overlays
             _animatedPiece.value = null
             _castlingRookPiece.value = null
             _defeatedPiece.value = null
@@ -367,11 +305,12 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun applyStateUpdate(move: Move) {
-        val next = ChessEngine.applyMove(_gameState.value, move)
-        _gameState.value = next
+        val applied = gameController.applyMove(move)
+        if (!applied) return
 
-        val isSound = _settings.value.soundEnabled
-        val isHaptics = _settings.value.hapticsEnabled
+        val next = gameState.value
+        val isSound = settings.value.soundEnabled
+        val isHaptics = settings.value.hapticsEnabled
 
         if (next.isCheckmate) {
             soundPlayer.playCheckmate(isSound, isHaptics)
@@ -384,86 +323,49 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
             soundPlayer.playPromotion(isSound, isHaptics)
         }
 
-        // Auto flip board in PvP if enabled
-        if (_settings.value.mode == GameMode.PVP && _settings.value.autoFlipBoard) {
+        if (settings.value.mode == GameMode.PVP && settings.value.autoFlipBoard) {
             _isFlipped.value = next.activeColor == PieceColor.BLACK
         }
     }
 
     private fun checkPostMoveConditions() {
-        val state = _gameState.value
+        val state = gameState.value
         if (state.isGameOver) return
 
-        // Trigger AI move if in PVC mode and it's Black's turn (or White's turn if player is Black)
-        if (_settings.value.mode == GameMode.PVC && state.activeColor == PieceColor.BLACK) {
+        if (settings.value.mode == GameMode.PVC && state.activeColor == PieceColor.BLACK) {
             triggerAIMove()
         }
     }
 
     private fun triggerAIMove() {
-        aiJob?.cancel()
-        aiJob = viewModelScope.launch {
-            _isThinking.value = true
-            // Small pause for realistic human pacing and animation clearance
-            delay(280)
-
-            val currentState = _gameState.value
-            val bestMove = withContext(Dispatchers.Default) {
-                ChessAI.findBestMove(currentState, _settings.value.aiDifficulty)
-            }
-
-            _isThinking.value = false
-
-            if (bestMove != null && isActive && !currentState.isGameOver) {
-                performMoveWithAnimation(bestMove) {
+        gameController.triggerAIMove(
+            difficulty = settings.value.aiDifficulty,
+            delayMs = 280L,
+            onMoveReady = { aiMove ->
+                performMoveWithAnimation(aiMove) {
                     checkPostMoveConditions()
                 }
             }
-        }
+        )
     }
 
     fun undoMove() {
-        if (_isThinking.value || animationJob?.isActive == true) return
-        val history = _gameState.value.moveHistory
-        if (history.isEmpty()) return
-
-        // In PVC, undo two moves (player and AI) to return to player's turn
-        val undoCount = if (_settings.value.mode == GameMode.PVC && history.size >= 2) 2 else 1
-        val targetSize = history.size - undoCount
-
-        // Replay from initial state to target size
-        var reconstructed = ChessEngine.createInitialState()
-        for (i in 0 until targetSize) {
-            reconstructed = ChessEngine.applyMove(reconstructed, history[i])
+        if (isThinking.value || animationJob?.isActive == true) return
+        val success = gameController.undoMove(settings.value.mode)
+        if (success) {
+            _selectedSquare.value = null
+            _legalMovesForSelected.value = emptyList()
         }
-
-        _gameState.value = reconstructed.copy(
-            redoHistory = history.takeLast(undoCount)
-        )
-        _selectedSquare.value = null
-        _legalMovesForSelected.value = emptyList()
     }
 
     fun redoMove() {
-        if (_isThinking.value || animationJob?.isActive == true) return
-        val redos = _gameState.value.redoHistory
-        if (redos.isEmpty()) return
-
-        val move = redos.first()
-        val next = ChessEngine.applyMove(_gameState.value, move)
-        _gameState.value = next.copy(redoHistory = redos.drop(1))
+        if (isThinking.value || animationJob?.isActive == true) return
+        gameController.redoMove()
     }
 
     fun getHint() {
-        if (_isThinking.value || _gameState.value.isGameOver) return
-        viewModelScope.launch {
-            _isThinking.value = true
-            val currentState = _gameState.value
-            val bestMove = withContext(Dispatchers.Default) {
-                ChessAI.findBestMove(currentState, AIDifficulty.HARD)
-            }
-            _isThinking.value = false
-
+        if (isThinking.value || gameState.value.isGameOver) return
+        gameController.getHint(AIDifficulty.HARD) { bestMove ->
             if (bestMove != null) {
                 _selectedSquare.value = bestMove.from
                 _legalMovesForSelected.value = listOf(bestMove)
@@ -472,9 +374,7 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun restartGame() {
-        aiJob?.cancel()
         animationJob?.cancel()
-        _isThinking.value = false
         _selectedSquare.value = null
         _legalMovesForSelected.value = emptyList()
         _animatedPiece.value = null
@@ -483,71 +383,86 @@ class ChessViewModel(application: Application) : AndroidViewModel(application) {
         _impactEffect.value = null
         _showGameOverDialog.value = false
 
-        val initial = ChessEngine.createInitialState()
-        val timeTotal = _settings.value.timeControl.totalSeconds
-        _gameState.value = initial.copy(
-            whiteTimeSeconds = timeTotal,
-            blackTimeSeconds = timeTotal,
-            isTimerRunning = timeTotal > 0
-        )
+        gameController.restartGame(settings.value.timeControl)
     }
 
-    private fun startTimerIfNeeded() {
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (isActive) {
-                delay(1000)
-                val state = _gameState.value
-                if (state.isTimerRunning && !state.isGameOver && _settings.value.timeControl != TimeControl.UNLIMITED) {
-                    if (state.activeColor == PieceColor.WHITE) {
-                        val newTime = (state.whiteTimeSeconds - 1).coerceAtLeast(0)
-                        if (newTime == 0) {
-                            _gameState.value = state.copy(
-                                whiteTimeSeconds = 0,
-                                isCheckmate = true,
-                                winner = PieceColor.BLACK
-                            )
-                            _showGameOverDialog.value = true
-                        } else {
-                            _gameState.value = state.copy(whiteTimeSeconds = newTime)
-                        }
-                    } else {
-                        val newTime = (state.blackTimeSeconds - 1).coerceAtLeast(0)
-                        if (newTime == 0) {
-                            _gameState.value = state.copy(
-                                blackTimeSeconds = 0,
-                                isCheckmate = true,
-                                winner = PieceColor.WHITE
-                            )
-                            _showGameOverDialog.value = true
-                        } else {
-                            _gameState.value = state.copy(blackTimeSeconds = newTime)
-                        }
-                    }
-                }
-            }
+    // ==================== Settings & Dialogs ====================
+
+    fun updateSettings(newSettings: GameSettings) {
+        val oldTimeControl = settings.value.timeControl
+        settingsRepository.updateSettings(newSettings)
+        _showSettingsDialog.value = false
+
+        // Restart timer if time control changed
+        if (oldTimeControl != newSettings.timeControl) {
+            gameController.restartGame(newSettings.timeControl)
         }
     }
 
+    fun openSettings() {
+        _showSettingsDialog.value = true
+    }
+
+    fun closeSettings() {
+        _showSettingsDialog.value = false
+    }
+
+    fun openThemeDialog() {
+        _showThemeDialog.value = true
+    }
+
+    fun closeThemeDialog() {
+        _showThemeDialog.value = false
+    }
+
+    fun resetToDefaultTheme() {
+        updateSettings(
+            settings.value.copy(
+                boardTheme = BoardTheme.CLASSIC_WOOD,
+                pieceSet = PieceSet.CLASSIC_STAUNTON,
+                syncThemeEffects = true
+            )
+        )
+    }
+
+    fun openPgn() {
+        _showPgnDialog.value = true
+    }
+
+    fun closePgn() {
+        _showPgnDialog.value = false
+    }
+
+    fun dismissGameOver() {
+        _showGameOverDialog.value = false
+    }
+
+    fun toggleFlip() {
+        _isFlipped.update { !it }
+    }
+
     fun calculateMaterialAdvantage(forColor: PieceColor): Int {
-        val whiteScore = _gameState.value.capturedBlack.sumOf { it.type.value }
-        val blackScore = _gameState.value.capturedWhite.sumOf { it.type.value }
-        val diff = if (forColor == PieceColor.WHITE) whiteScore - blackScore else blackScore - whiteScore
-        return if (diff > 0) diff / 100 else 0
+        return gameController.calculateMaterialAdvantage(forColor)
     }
 
     fun getPgnText(): String {
-        return ChessEngine.exportPgn(
-            state = _gameState.value,
-            whitePlayer = if (_settings.value.mode == GameMode.PVC && _settings.value.playerColor == PieceColor.BLACK) "Computer (${_settings.value.aiDifficulty.label})" else "Player 1",
-            blackPlayer = if (_settings.value.mode == GameMode.PVC) "Computer (${_settings.value.aiDifficulty.label})" else "Player 2"
-        )
+        val currentSettings = settings.value
+        val whitePlayer = if (currentSettings.mode == GameMode.PVC && currentSettings.playerColor == PieceColor.BLACK) {
+            "Computer (${currentSettings.aiDifficulty.label})"
+        } else {
+            "Player 1"
+        }
+        val blackPlayer = if (currentSettings.mode == GameMode.PVC) {
+            "Computer (${currentSettings.aiDifficulty.label})"
+        } else {
+            "Player 2"
+        }
+        return gameController.exportPgn(whitePlayer, blackPlayer)
     }
 
     override fun onCleared() {
         super.onCleared()
-        timerJob?.cancel()
-        aiJob?.cancel()
         animationJob?.cancel()
+        gameController.cleanup()
     }
 }
