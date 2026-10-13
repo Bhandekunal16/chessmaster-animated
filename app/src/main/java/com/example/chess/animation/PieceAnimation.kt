@@ -11,22 +11,7 @@ import com.example.chess.types.*
 
 
 
-data class AnimatedPieceState(
-    val piece: Piece,
-    val from: Square,
-    val to: Square,
-    val isCapture: Boolean,
-    val isCastlingRook: Boolean = false,
-    val progress: Float = 0f,
-    // Interpolated values calculated by piece-specific interpolator
-    val currentCoord: Offset = Offset(from.file.toFloat(), from.rank.toFloat()),
-    val scale: Float = 1f,
-    val rotation: Float = 0f,
-    val alpha: Float = 1f,
-    val shadowOffset: Float = 0f,
-    val auraColor: Color? = null,
-    val trailOffsets: List<Offset> = emptyList()
-)
+
 
 data class DefeatedPieceState(
     val piece: Piece,
