@@ -51,3 +51,13 @@ data class AnimatedPieceState(
     val auraColor: Color? = null,
     val trailOffsets: List<Offset> = emptyList()
 )
+
+data class DefeatedPieceState(
+    val piece: Piece,
+    val square: Square,
+    val progress: Float = start,
+    val scale: Float = complete,
+    val alpha: Float = complete,
+    val rotation: Float = start,
+    val particles: List<Particle> = emptyList()
+)

@@ -11,18 +11,6 @@ import com.example.chess.types.*
 
 
 
-
-
-data class DefeatedPieceState(
-    val piece: Piece,
-    val square: Square,
-    val progress: Float = 0f,
-    val scale: Float = 1f,
-    val alpha: Float = 1f,
-    val rotation: Float = 0f,
-    val particles: List<Particle> = emptyList()
-)
-
 object PieceAnimationCalculator {
 
     /**
