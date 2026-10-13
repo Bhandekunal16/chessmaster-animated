@@ -7,18 +7,7 @@ import com.example.chess.model.PieceColor
 import com.example.chess.model.PieceType
 import com.example.chess.model.Square
 import kotlin.math.*
-import com.example.chess.types.ImpactType
-
-
-data class Particle(
-    val x: Float,
-    val y: Float,
-    val vx: Float,
-    val vy: Float,
-    val color: Color,
-    val alpha: Float,
-    val radius: Float
-)
+import com.example.chess.types.*
 
 data class BoardImpactEffect(
     val square: Square,
