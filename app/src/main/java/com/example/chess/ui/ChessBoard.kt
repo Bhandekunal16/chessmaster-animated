@@ -49,6 +49,7 @@ fun ChessBoard(
     defeatedPiece: DefeatedPieceState?,
     impactEffect: BoardImpactEffect?,
     isFlipped: Boolean,
+    isThinking: Boolean = false,
     onSquareClick: (Square) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -137,7 +138,7 @@ fun ChessBoard(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .background(sqBg)
-                                .clickable { onSquareClick(sq) }
+                                .clickable(enabled = !isThinking && !gameState.isGameOver) { onSquareClick(sq) }
                                 .testTag("square_${sq.algebraic}"),
                             contentAlignment = Alignment.Center
                         ) {

@@ -15,7 +15,8 @@ A modern, full-featured Android chess game built with Kotlin, Jetpack Compose, M
 ### 🤖 Intelligent AI Opponent
 - Play locally against a friend (Player vs Player) or challenge the built-in AI (Player vs Computer).
 - Three selectable difficulty levels: Novice, Intermediate, and Master with alpha-beta minimax search and piece-square positional heuristics.
-- Asynchronous AI calculation running safely off the UI thread with thinking indicators.
+- Asynchronous AI calculation running safely off the UI thread (`Dispatchers.Default`) with cooperative cancellation checks (`ensureActive()`).
+- Race condition protection with state-generation tokens, stale move rejection, and board interaction locking during engine calculation.
 
 ### ⏱️ Dynamic Game Clocks & Time Controls
 - Multiple customizable time control modes:

@@ -185,4 +185,29 @@ class GameControllerTest {
             assertFalse(controller.applyMove(furtherMoveAttempt))
         }
     }
+
+    @Test
+    fun testMoveRejectedWhileAIThinking() = testScope.runTest {
+        val controller = GameController(scope = this, computeDispatcher = testDispatcher)
+
+        // White plays 1. e4
+        val e4Move = controller.getLegalMoves(Square.fromAlgebraic("e2")!!).first { it.to == Square.fromAlgebraic("e4")!! }
+        controller.applyMove(e4Move)
+
+        // Trigger AI move with delay
+        controller.triggerAIMove(AIDifficulty.EASY, delayMs = 1000L)
+        assertTrue(controller.isThinking.value)
+
+        // Attempting any move while AI is thinking should be rejected
+        val blackMove = controller.getLegalMoves(Square.fromAlgebraic("e7")!!).firstOrNull()
+        if (blackMove != null) {
+            val applied = controller.applyMove(blackMove)
+            assertFalse("Moves must be rejected while AI is thinking", applied)
+        }
+
+        // Cancel AI job or let it complete
+        controller.cancelAIJob()
+        assertFalse(controller.isThinking.value)
+    }
 }
+

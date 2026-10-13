@@ -132,6 +132,7 @@ fun ChessScreen(
                 defeatedPiece = defeatedPiece,
                 impactEffect = impactEffect,
                 isFlipped = isFlipped,
+                isThinking = isThinking,
                 onSquareClick = { viewModel.onSquareClicked(it) },
                 modifier = Modifier
                     .fillMaxWidth()

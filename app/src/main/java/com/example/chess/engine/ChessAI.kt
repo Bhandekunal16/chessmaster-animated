@@ -1,6 +1,8 @@
 package com.example.chess.engine
 
 import com.example.chess.model.*
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlin.random.Random
 
 object ChessAI {
@@ -83,7 +85,8 @@ object ChessAI {
         -50,-30,-30,-30,-30,-30,-30,-50
     )
 
-    fun findBestMove(state: GameState, difficulty: AIDifficulty): Move? {
+    suspend fun findBestMove(state: GameState, difficulty: AIDifficulty): Move? {
+        currentCoroutineContext().ensureActive()
         val legalMoves = ChessEngine.getLegalMoves(state)
         if (legalMoves.isEmpty()) return null
 
@@ -107,6 +110,7 @@ object ChessAI {
         val orderedMoves = orderMoves(state, legalMoves)
 
         for (move in orderedMoves) {
+            currentCoroutineContext().ensureActive()
             val nextState = ChessEngine.applyMove(state, move)
             val score = minimax(
                 nextState,
@@ -133,7 +137,7 @@ object ChessAI {
         return bestMove ?: legalMoves.first()
     }
 
-    private fun minimax(
+    private suspend fun minimax(
         state: GameState,
         depth: Int,
         alpha: Int,
@@ -141,6 +145,7 @@ object ChessAI {
         isMaximizing: Boolean,
         useQuiescence: Boolean
     ): Int {
+        currentCoroutineContext().ensureActive()
         if (state.isGameOver) {
             return when {
                 state.isCheckmate -> if (state.winner == PieceColor.WHITE) 900_000 + depth else -900_000 - depth
@@ -171,6 +176,7 @@ object ChessAI {
         if (isMaximizing) {
             var maxEval = -1_000_000
             for (move in orderedMoves) {
+                currentCoroutineContext().ensureActive()
                 val nextState = ChessEngine.applyMove(state, move)
                 val eval = minimax(nextState, depth - 1, curAlpha, curBeta, false, useQuiescence)
                 maxEval = maxOf(maxEval, eval)
@@ -181,6 +187,7 @@ object ChessAI {
         } else {
             var minEval = 1_000_000
             for (move in orderedMoves) {
+                currentCoroutineContext().ensureActive()
                 val nextState = ChessEngine.applyMove(state, move)
                 val eval = minimax(nextState, depth - 1, curAlpha, curBeta, true, useQuiescence)
                 minEval = minOf(minEval, eval)
@@ -191,7 +198,8 @@ object ChessAI {
         }
     }
 
-    private fun quiescence(state: GameState, alpha: Int, beta: Int, qDepth: Int): Int {
+    private suspend fun quiescence(state: GameState, alpha: Int, beta: Int, qDepth: Int): Int {
+        currentCoroutineContext().ensureActive()
         val standPat = evaluateBoard(state.board)
         if (qDepth <= 0) return standPat
 
@@ -205,6 +213,7 @@ object ChessAI {
 
             val captureMoves = ChessEngine.getLegalMoves(state).filter { it.isCapture }
             for (move in orderMoves(state, captureMoves)) {
+                currentCoroutineContext().ensureActive()
                 val nextState = ChessEngine.applyMove(state, move)
                 val score = quiescence(nextState, curAlpha, curBeta, qDepth - 1)
                 if (score >= curBeta) return curBeta
@@ -217,6 +226,7 @@ object ChessAI {
 
             val captureMoves = ChessEngine.getLegalMoves(state).filter { it.isCapture }
             for (move in orderMoves(state, captureMoves)) {
+                currentCoroutineContext().ensureActive()
                 val nextState = ChessEngine.applyMove(state, move)
                 val score = quiescence(nextState, curAlpha, curBeta, qDepth - 1)
                 if (score <= curAlpha) return curAlpha

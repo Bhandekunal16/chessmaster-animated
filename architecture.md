@@ -104,10 +104,37 @@ ChessViewModel (Presentation Coordination)
    - Read/write access to user preferences (board theme, piece theme, sound, haptics, timer settings, AI level) is managed through `SettingsRepository`.
    - Storage details (`SharedPreferences`) are completely decoupled from ViewModel presentation logic.
 
+## AI Concurrency & Cancellation Safety Architecture
+
+To guarantee maximum UI responsiveness and prevent race conditions or corrupted board states during intensive engine calculations, the application enforces the following concurrency design:
+
+1. **Dispatcher Offloading**:
+   - Computationally intensive alpha-beta minimax search, iterative tree evaluation, and quiescence evaluations run exclusively on `Dispatchers.Default` via `GameController(computeDispatcher = Dispatchers.Default)`.
+   - The main Android UI thread remains completely free for 60fps animations and fluid touch feedback.
+
+2. **Cooperative Cancellation**:
+   - `ChessAI.findBestMove`, `minimax`, and `quiescence` incorporate cooperative coroutine cancellation checks (`ensureActive()`) across move evaluation loops and recursion depths.
+   - Any coroutine cancellation (triggered by user undo, game restart, new game, or timeout) terminates the search immediately, conserving CPU and battery resources.
+   - `CancellationException` is strictly preserved and rethrown to prevent swallowing coroutine lifecycle signals.
+
+3. **Generation Counter & Stale Result Rejection**:
+   - `GameController` maintains a monotonically increasing `gameGeneration` counter.
+   - Whenever a move is executed, an undo is requested, or the game is reset, `gameGeneration` increments and any existing `aiJob` is promptly cancelled.
+   - Before applying any computed AI move, `GameController` validates that:
+     1. The generation token captured at the start of the search still matches the current `gameGeneration`.
+     2. The board is still in the exact matching position (`snapshot == _gameState.value`).
+     3. The selected move is strictly legal on the current board.
+   - Any obsolete or stale search result is rejected and dropped without mutating state.
+
+4. **Conflicting Board Move Prevention**:
+   - While the AI is calculating (`isThinking == true`), both the domain controller (`GameController.applyMove`) and the presentation layer (`ChessViewModel.onSquareClicked`, `ChessBoard.clickable`) reject user piece selections and destination moves.
+   - Action controls like Undo, Redo, and Hint are disabled in `ChessActionBar` during active computation.
+
 ## Testing Architecture
 
 Comprehensive local JVM unit tests are organized by layer:
 - **`GameClockTest`**: Verifies starting, stopping, active player toggling, increment logic, pause/resume, reset, timeout events, and coroutine cancellation.
-- **`GameControllerTest`**: Verifies player moves, turn transitions, AI move execution, undo/redo stacks, restart during active AI computation, rejection of stale AI moves, and game-over transitions.
+- **`GameControllerTest`**: Verifies player moves, turn transitions, AI move execution, undo/redo stacks, restart during active AI computation, rejection of stale AI moves, move rejection while thinking, and game-over transitions.
 - **`SettingsRepositoryTest`**: Verifies loading defaults, persisting updates, and schema compatibility.
 - **`ChessViewModelTest`**: Verifies UI state flows, square selections, promotion dialog flows, board orientation toggles, factory instantiation (`AndroidViewModelFactory`), and delegation to underlying controllers.
+- **`ExampleUnitTest`**: Verifies core chess engine rules, checkmate detection, legal move generators, and AI search results.

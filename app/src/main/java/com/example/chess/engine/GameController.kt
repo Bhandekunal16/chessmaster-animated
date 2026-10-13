@@ -39,11 +39,14 @@ class GameController(
 
     /**
      * Attempts to apply the specified [move] to the current board.
-     * Validates that the move is legal.
+     * Validates that the move is legal and that AI is not currently thinking.
      *
      * @return true if the move was legal and applied, false otherwise.
      */
     fun applyMove(move: Move): Boolean {
+        // Reject user moves while AI is thinking to avoid race conditions and conflicting moves
+        if (_isThinking.value) return false
+
         val currentState = _gameState.value
         if (currentState.isGameOver) return false
 
@@ -53,7 +56,7 @@ class GameController(
             return false
         }
 
-        // Advance game generation to stale any in-flight AI calculations
+        // Advance game generation to invalidate any in-flight AI calculations
         gameGeneration++
         cancelAiJob()
 
@@ -119,12 +122,24 @@ class GameController(
                 _isThinking.value = false
 
                 if (bestMove != null) {
-                    if (onMoveReady != null) {
-                        onMoveReady(bestMove)
-                    } else {
-                        applyMove(bestMove)
+                    // Validate move legality against current board before applying
+                    val legalMoves = ChessEngine.getLegalMoves(_gameState.value, bestMove.from)
+                    val isStillLegal = legalMoves.any { 
+                        it.to == bestMove.to && (bestMove.promotionPiece == null || it.promotionPiece == bestMove.promotionPiece) 
+                    }
+                    if (isStillLegal) {
+                        if (onMoveReady != null) {
+                            onMoveReady(bestMove)
+                        } else {
+                            applyMove(bestMove)
+                        }
                     }
                 }
+            } catch (e: CancellationException) {
+                // Cancellation is normal when game state changes or search is invalidated; rethrow
+                throw e
+            } catch (e: Throwable) {
+                // Unexpected search failure: safely log or handle
             } finally {
                 if (currentGen == gameGeneration) {
                     _isThinking.value = false
@@ -229,6 +244,10 @@ class GameController(
                 if (isActive && currentGen == gameGeneration && _gameState.value == snapshot) {
                     onHintFound(bestMove)
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Ignore or handle
             } finally {
                 if (currentGen == gameGeneration) {
                     _isThinking.value = false
@@ -289,7 +308,10 @@ class GameController(
     fun cancelAiJob() {
         aiJob?.cancel()
         aiJob = null
+        _isThinking.value = false
     }
+
+    fun cancelAIJob() = cancelAiJob()
 
     fun cleanup() {
         cancelAiJob()

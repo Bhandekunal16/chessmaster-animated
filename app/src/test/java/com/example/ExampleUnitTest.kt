@@ -169,7 +169,7 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun testChessAIFindsMove() {
+    fun testChessAIFindsMove() = kotlinx.coroutines.runBlocking {
         val state = ChessEngine.createInitialState()
         val move = ChessAI.findBestMove(state, AIDifficulty.EASY)
         assertNotNull("AI must find a legal move", move)
