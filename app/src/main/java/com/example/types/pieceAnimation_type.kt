@@ -5,6 +5,9 @@ import com.example.chess.model.Square
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 
+var start = 0f
+var complete = 1f
+
 enum class ImpactType {
     PAWN_SPARK,
     KNIGHT_AERIAL_STRIKE,
@@ -28,7 +31,7 @@ data class Particle(
 data class BoardImpactEffect(
     val square: Square,
     val type: ImpactType,
-    val progress: Float = 0f,
+    val progress: Float = start,
     val isWhitePiece: Boolean = true,
     val particles: List<Particle> = emptyList()
 )
@@ -39,12 +42,12 @@ data class AnimatedPieceState(
     val to: Square,
     val isCapture: Boolean,
     val isCastlingRook: Boolean = false,
-    val progress: Float = 0f,
+    val progress: Float = start,
     val currentCoord: Offset = Offset(from.file.toFloat(), from.rank.toFloat()),
-    val scale: Float = 1f,
-    val rotation: Float = 0f,
-    val alpha: Float = 1f,
-    val shadowOffset: Float = 0f,
+    val scale: Float = complete,
+    val rotation: Float = start,
+    val alpha: Float = complete,
+    val shadowOffset: Float = start,
     val auraColor: Color? = null,
     val trailOffsets: List<Offset> = emptyList()
 )
