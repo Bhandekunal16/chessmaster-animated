@@ -39,8 +39,8 @@ class ExampleRobolectricTest {
     // Initially settings dialog is not displayed
     composeTestRule.onNodeWithTag("settings_dialog").assertDoesNotExist()
 
-    // Open settings via ViewModel
-    vm.openSettings()
+    // Click top settings button
+    composeTestRule.onNodeWithTag("top_settings_button").performClick()
     composeTestRule.waitForIdle()
 
     // Check if viewmodel state changed
@@ -48,5 +48,12 @@ class ExampleRobolectricTest {
 
     // Settings dialog must now exist and be displayed
     composeTestRule.onNodeWithTag("settings_dialog").assertIsDisplayed()
+
+    // Click close settings button
+    composeTestRule.onNodeWithTag("close_settings_button").performClick()
+    composeTestRule.waitForIdle()
+
+    org.junit.Assert.assertFalse("showSettingsDialog state should be false", vm.showSettingsDialog.value)
+    composeTestRule.onNodeWithTag("settings_dialog").assertDoesNotExist()
   }
 }

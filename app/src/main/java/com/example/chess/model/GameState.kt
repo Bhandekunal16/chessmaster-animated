@@ -89,7 +89,9 @@ enum class PieceSet(val title: String, val description: String) {
     FANTASY("Fantasy", "Mythic ornate silhouettes, spiked crests, and flared armor"),
     NEON("Neon", "Futuristic glowing neon lines with high-contrast electric cores"),
     ROYAL("Royal", "Imperial luxury pieces with gold accents and jewel emblems"),
-    PIXEL_ART("Pixel Art", "Retro 8-bit stepped pixel silhouette aesthetic")
+    PIXEL_ART("Pixel Art", "Retro 8-bit stepped pixel silhouette aesthetic"),
+    WOODEN_CARVED("Handcrafted Wood", "Warm grain textures, lathed concentric contours & timber finish"),
+    CYBER_MECHA("Cyber Mecha", "Armored sci-fi exoskeletons with hex plating and illuminated optics")
 }
 
 enum class TimeControl(val label: String, val totalSeconds: Int, val incrementSeconds: Int) {

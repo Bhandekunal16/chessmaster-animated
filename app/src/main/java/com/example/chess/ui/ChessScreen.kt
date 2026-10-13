@@ -81,7 +81,7 @@ fun ChessScreen(
                     IconButton(onClick = { viewModel.openPgn() }, modifier = Modifier.testTag("pgn_button")) {
                         Icon(Icons.Default.Share, contentDescription = "PGN Export", tint = Color(0xFF94A3B8))
                     }
-                    IconButton(onClick = { viewModel.openSettings() }) {
+                    IconButton(onClick = { viewModel.openSettings() }, modifier = Modifier.testTag("top_settings_button")) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF94A3B8))
                     }
                 },

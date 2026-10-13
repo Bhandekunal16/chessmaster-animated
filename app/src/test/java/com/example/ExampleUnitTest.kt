@@ -196,7 +196,7 @@ class ExampleUnitTest {
     @Test
     fun testAllPieceSetsAvailable() {
         val pieceSets = PieceSet.values()
-        assertEquals(8, pieceSets.size)
+        assertEquals(10, pieceSets.size)
 
         pieceSets.forEach { set ->
             assertNotNull(set.title)

@@ -266,6 +266,42 @@ fun SettingsDialog(
                         }
                     }
 
+                    // Section 3b: Piece Set Gallery & Options
+                    item {
+                        SettingsSectionHeader(
+                            icon = Icons.Default.Category,
+                            title = "Piece Theme & Style",
+                            subtitle = "Choose custom rendered piece aesthetics and silhouettes"
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val allPieceSets = PieceSet.values()
+                            for (row in allPieceSets.indices step 2) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    PieceSetCard(
+                                        pieceSet = allPieceSets[row],
+                                        isSelected = pieceSet == allPieceSets[row],
+                                        onClick = { pieceSet = allPieceSets[row] },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (row + 1 < allPieceSets.size) {
+                                        PieceSetCard(
+                                            pieceSet = allPieceSets[row + 1],
+                                            isSelected = pieceSet == allPieceSets[row + 1],
+                                            onClick = { pieceSet = allPieceSets[row + 1] },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    } else {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Section 4: Piece Animation Speed
                     item {
                         SettingsSectionHeader(
@@ -694,6 +730,76 @@ private fun BoardThemeCard(
                 )
                 Text(
                     text = theme.subtitle,
+                    fontSize = 9.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1
+                )
+            }
+
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF38BDF8),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PieceSetCard(
+    pieceSet: PieceSet,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFF1E293B) else Color(0xFF131D31)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) Color(0xFF38BDF8) else Color(0xFF334155)
+        ),
+        modifier = modifier
+            .clickable { onClick() }
+            .testTag("settings_pieceset_${pieceSet.name}")
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Live piece preview icons (White Knight + Black King)
+            Row(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF0F172A))
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(6.dp)),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(18.dp)) {
+                    ChessPieceView(type = PieceType.KNIGHT, color = PieceColor.WHITE, pieceSet = pieceSet)
+                }
+                Box(modifier = Modifier.size(18.dp)) {
+                    ChessPieceView(type = PieceType.KING, color = PieceColor.BLACK, pieceSet = pieceSet)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = pieceSet.title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color(0xFF38BDF8) else Color.White
+                )
+                Text(
+                    text = pieceSet.description,
                     fontSize = 9.sp,
                     color = Color(0xFF94A3B8),
                     maxLines = 1

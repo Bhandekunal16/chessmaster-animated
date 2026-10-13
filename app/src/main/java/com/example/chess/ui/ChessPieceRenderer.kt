@@ -54,5 +54,7 @@ fun DrawScope.drawChessPiece(
         PieceSet.NEON -> ThemedPieceRenderer.drawNeon(this, type, color)
         PieceSet.ROYAL -> ThemedPieceRenderer.drawRoyal(this, type, color)
         PieceSet.PIXEL_ART -> ThemedPieceRenderer.drawPixelArt(this, type, color)
+        PieceSet.WOODEN_CARVED -> ThemedPieceRenderer.drawWoodenCarved(this, type, color)
+        PieceSet.CYBER_MECHA -> ThemedPieceRenderer.drawCyberMecha(this, type, color)
     }
 }
