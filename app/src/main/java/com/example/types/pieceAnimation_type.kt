@@ -1,5 +1,6 @@
 package com.example.chess.types
 
+import com.example.chess.model.Square
 import androidx.compose.ui.graphics.Color
 
 enum class ImpactType {
@@ -20,4 +21,12 @@ data class Particle(
     val color: Color,
     val alpha: Float,
     val radius: Float
+)
+
+data class BoardImpactEffect(
+    val square: Square,
+    val type: ImpactType,
+    val progress: Float = 0f,
+    val isWhitePiece: Boolean = true,
+    val particles: List<Particle> = emptyList()
 )

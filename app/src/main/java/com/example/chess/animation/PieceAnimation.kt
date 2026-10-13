@@ -9,13 +9,7 @@ import com.example.chess.model.Square
 import kotlin.math.*
 import com.example.chess.types.*
 
-data class BoardImpactEffect(
-    val square: Square,
-    val type: ImpactType,
-    val progress: Float = 0f,
-    val isWhitePiece: Boolean = true,
-    val particles: List<Particle> = emptyList()
-)
+
 
 data class AnimatedPieceState(
     val piece: Piece,

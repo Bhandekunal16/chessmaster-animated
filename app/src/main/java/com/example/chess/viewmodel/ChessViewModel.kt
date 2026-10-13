@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import com.example.chess.types.ImpactType
+import com.example.chess.types.*
 
 class ChessViewModel(application: Application) : AndroidViewModel(application) {
 

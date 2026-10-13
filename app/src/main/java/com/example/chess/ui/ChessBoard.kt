@@ -36,6 +36,7 @@ import com.example.chess.animation.*
 import com.example.chess.engine.ChessEngine
 import com.example.chess.model.*
 import com.example.chess.types.*
+import com.example.chess.types.BoardImpactEffect
 import kotlin.math.sin
 
 @Composable
