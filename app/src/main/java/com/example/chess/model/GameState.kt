@@ -1,8 +1,9 @@
 package com.example.chess.model
 
 enum class GameMode {
-    PVP, // Two players on same device
-    PVC  // Player vs Computer
+    PVP, // Two players on same device (Pass & Play)
+    PVC, // Player vs Computer
+    LOCAL_MULTIPLAYER // Local Wi-Fi Multiplayer
 }
 
 enum class AIDifficulty(val label: String, val depth: Int, val description: String) {

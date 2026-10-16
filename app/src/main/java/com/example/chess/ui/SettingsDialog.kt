@@ -34,6 +34,7 @@ fun SettingsDialog(
     currentSettings: GameSettings,
     onSave: (GameSettings) -> Unit,
     onOpenThemeStudio: () -> Unit = {},
+    onOpenMultiplayer: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var mode by remember { mutableStateOf(currentSettings.mode) }
@@ -182,6 +183,16 @@ fun SettingsDialog(
                                 icon = Icons.Default.People,
                                 isSelected = mode == GameMode.PVP,
                                 onClick = { mode = GameMode.PVP }
+                            )
+                            GameModeCard(
+                                title = "Local Wi-Fi Match (2 Devices)",
+                                description = "Peer-to-peer over local network. White hosts session, Black joins.",
+                                icon = Icons.Default.Wifi,
+                                isSelected = mode == GameMode.LOCAL_MULTIPLAYER,
+                                onClick = {
+                                    onDismiss()
+                                    onOpenMultiplayer?.invoke()
+                                }
                             )
                         }
                     }

@@ -37,6 +37,7 @@ fun GrandmasterTopAppBar(
     onPgnClick: () -> Unit,
     onShareClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onOpenMultiplayer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -74,8 +75,10 @@ fun GrandmasterTopAppBar(
                 DifficultySelector(
                     currentDifficulty = settings.aiDifficulty,
                     isPVC = settings.mode == GameMode.PVC,
+                    gameMode = settings.mode,
                     onDifficultySelected = onDifficultySelected,
-                    onModeSelected = onModeSelected
+                    onModeSelected = onModeSelected,
+                    onOpenMultiplayer = onOpenMultiplayer
                 )
             }
 
@@ -121,17 +124,31 @@ fun GrandmasterTopAppBar(
 fun DifficultySelector(
     currentDifficulty: AIDifficulty,
     isPVC: Boolean,
+    gameMode: GameMode = GameMode.PVC,
     onDifficultySelected: (AIDifficulty) -> Unit,
     onModeSelected: (GameMode) -> Unit,
+    onOpenMultiplayer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+
+    val badgeText = when (gameMode) {
+        GameMode.LOCAL_MULTIPLAYER -> "Wi-Fi Match"
+        GameMode.PVC -> currentDifficulty.label
+        GameMode.PVP -> "2 Players"
+    }
+
+    val badgeColor = when (gameMode) {
+        GameMode.LOCAL_MULTIPLAYER -> Color(0xFF2563EB)
+        GameMode.PVC -> Color(0xFF0284C7)
+        GameMode.PVP -> Color(0xFF059669)
+    }
 
     Box(modifier = modifier.wrapContentSize()) {
         Surface(
             onClick = { expanded = true },
             shape = RoundedCornerShape(6.dp),
-            color = if (isPVC) Color(0xFF0284C7) else Color(0xFF059669),
+            color = badgeColor,
             modifier = Modifier.testTag("top_difficulty_selector")
         ) {
             Row(
@@ -139,8 +156,16 @@ fun DifficultySelector(
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
             ) {
+                if (gameMode == GameMode.LOCAL_MULTIPLAYER) {
+                    Icon(
+                        imageVector = Icons.Default.Wifi,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
                 Text(
-                    text = if (isPVC) currentDifficulty.label else "2 Players",
+                    text = badgeText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -149,7 +174,7 @@ fun DifficultySelector(
                 )
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = "Select Difficulty",
+                    contentDescription = "Select Mode or Difficulty",
                     tint = Color.White.copy(alpha = 0.9f),
                     modifier = Modifier.size(15.dp)
                 )
@@ -164,7 +189,7 @@ fun DifficultySelector(
                 .testTag("difficulty_dropdown_menu")
         ) {
             Text(
-                text = "Match Difficulty",
+                text = "Match Mode & AI",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF94A3B8),
@@ -209,7 +234,7 @@ fun DifficultySelector(
             HorizontalDivider(color = Color(0xFF334155), thickness = 0.8.dp)
             DropdownMenuItem(
                 text = {
-                    val isSelected = !isPVC
+                    val isSelected = gameMode == GameMode.PVP
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -239,6 +264,46 @@ fun DifficultySelector(
                     expanded = false
                 },
                 modifier = Modifier.testTag("mode_option_pvp")
+            )
+            HorizontalDivider(color = Color(0xFF334155), thickness = 0.8.dp)
+            DropdownMenuItem(
+                text = {
+                    val isSelected = gameMode == GameMode.LOCAL_MULTIPLAYER
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Wifi,
+                            contentDescription = null,
+                            tint = if (isSelected) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Local Wi-Fi Match...",
+                            color = if (isSelected) Color(0xFF38BDF8) else Color.White,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (isSelected) {
+                            Spacer(Modifier.weight(1f))
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onOpenMultiplayer?.invoke()
+                },
+                modifier = Modifier.testTag("mode_option_multiplayer")
             )
         }
     }

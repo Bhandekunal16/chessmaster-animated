@@ -376,6 +376,32 @@ class GameController(
         }
     }
 
+    fun resign(color: PieceColor) {
+        cancelAiJob()
+        gameGeneration++
+        gameClock.stop()
+        _gameState.update { current ->
+            current.copy(
+                isCheckmate = true,
+                winner = color.opposite(),
+                isTimerRunning = false
+            )
+        }
+    }
+
+    fun claimDraw() {
+        cancelAiJob()
+        gameGeneration++
+        gameClock.stop()
+        _gameState.update { current ->
+            current.copy(
+                isDraw = true,
+                isStalemate = true,
+                isTimerRunning = false
+            )
+        }
+    }
+
     fun cancelAiJob() {
         aiJob?.cancel()
         aiJob = null

@@ -13,6 +13,10 @@ import com.example.chess.engine.GameClock
 import com.example.chess.engine.GameController
 import com.example.chess.model.*
 import com.example.chess.repository.*
+import com.example.chess.multiplayer.model.DiscoveredHost
+import com.example.chess.multiplayer.model.MultiplayerRole
+import com.example.chess.multiplayer.model.MultiplayerSessionState
+import com.example.chess.multiplayer.network.LocalMultiplayerManager
 import com.example.chess.types.*
 import com.example.chess.ui.ShareAppHelper
 import kotlinx.coroutines.*
@@ -94,9 +98,58 @@ class ChessViewModel @JvmOverloads constructor(
     private val _showPgnDialog = MutableStateFlow(false)
     val showPgnDialog: StateFlow<Boolean> = _showPgnDialog.asStateFlow()
 
+    // Multiplayer State
+    val multiplayerManager: LocalMultiplayerManager = LocalMultiplayerManager(application, viewModelScope)
+    val multiplayerSessionState: StateFlow<MultiplayerSessionState> = multiplayerManager.sessionState
+    val discoveredHosts: StateFlow<List<DiscoveredHost>> = multiplayerManager.discoveredHosts
+
+    private val _showMultiplayerDialog = MutableStateFlow(false)
+    val showMultiplayerDialog: StateFlow<Boolean> = _showMultiplayerDialog.asStateFlow()
+
+    private val _showDisconnectionDialog = MutableStateFlow(false)
+    val showDisconnectionDialog: StateFlow<Boolean> = _showDisconnectionDialog.asStateFlow()
+
+    private val _disconnectionReason = MutableStateFlow("")
+    val disconnectionReason: StateFlow<String> = _disconnectionReason.asStateFlow()
+
+    private val _showDrawOfferDialog = MutableStateFlow(false)
+    val showDrawOfferDialog: StateFlow<Boolean> = _showDrawOfferDialog.asStateFlow()
+
+    private val _multiplayerNotice = MutableStateFlow<String?>(null)
+    val multiplayerNotice: StateFlow<String?> = _multiplayerNotice.asStateFlow()
+
     private var animationJob: Job? = null
 
     init {
+        // Wire LocalMultiplayerManager callbacks
+        multiplayerManager.onOpponentMoveReceived = { ff, fr, tf, tr, promo ->
+            handleOpponentMove(ff, fr, tf, tr, promo)
+        }
+        multiplayerManager.onGameStateSyncReceived = { snapshotJson ->
+            handleAuthoritativeStateSync(snapshotJson)
+        }
+        multiplayerManager.onDrawOfferedReceived = {
+            _showDrawOfferDialog.value = true
+        }
+        multiplayerManager.onDrawAcceptedReceived = {
+            gameController.claimDraw()
+            _showGameOverDialog.value = true
+            _multiplayerNotice.value = "Draw agreed by both players"
+        }
+        multiplayerManager.onDrawRejectedReceived = {
+            _multiplayerNotice.value = "Opponent declined the draw offer"
+        }
+        multiplayerManager.onOpponentResignedReceived = {
+            val resigningColor = if (multiplayerManager.sessionState.value.role == MultiplayerRole.HOST) PieceColor.BLACK else PieceColor.WHITE
+            gameController.resign(resigningColor)
+            _showGameOverDialog.value = true
+            _multiplayerNotice.value = "Opponent resigned! You win!"
+        }
+        multiplayerManager.onOpponentDisconnectedReceived = { reason ->
+            _disconnectionReason.value = reason
+            _showDisconnectionDialog.value = true
+        }
+
         // Attempt active game state restoration across process recreation
         if (activeGameRepository != null) {
             restorationJob = viewModelScope.launch {
@@ -147,6 +200,15 @@ class ChessViewModel @JvmOverloads constructor(
 
         val state = gameState.value
         val currentSelected = _selectedSquare.value
+        val isMultiplayer = settings.value.mode == GameMode.LOCAL_MULTIPLAYER
+        val myColor = if (isMultiplayer) {
+            if (multiplayerManager.sessionState.value.role == MultiplayerRole.HOST) PieceColor.WHITE else PieceColor.BLACK
+        } else null
+
+        // In multiplayer, block interactions if it is not the local player's turn
+        if (isMultiplayer && myColor != null && state.activeColor != myColor) {
+            return
+        }
 
         // Check if user clicked a destination square for a legal move
         if (currentSelected != null) {
@@ -169,6 +231,9 @@ class ChessViewModel @JvmOverloads constructor(
         // Otherwise select/deselect piece
         val clickedPiece = state.getPiece(square)
         if (clickedPiece != null && clickedPiece.color == state.activeColor) {
+            if (isMultiplayer && myColor != null && clickedPiece.color != myColor) {
+                return
+            }
             _selectedSquare.value = square
             _legalMovesForSelected.value = gameController.getLegalMoves(square)
         } else {
@@ -188,8 +253,22 @@ class ChessViewModel @JvmOverloads constructor(
         _selectedSquare.value = null
         _legalMovesForSelected.value = emptyList()
 
-        performMoveWithAnimation(move) {
-            checkPostMoveConditions()
+        if (settings.value.mode == GameMode.LOCAL_MULTIPLAYER) {
+            val isHost = multiplayerManager.sessionState.value.role == MultiplayerRole.HOST
+            if (isHost) {
+                // Host transmits move to client and applies with animation locally
+                multiplayerManager.sendMove(move.from.file, move.from.rank, move.to.file, move.to.rank, move.promotionPiece)
+                performMoveWithAnimation(move) {
+                    checkPostMoveConditions()
+                }
+            } else {
+                // Client transmits move request to Host for authoritative validation
+                multiplayerManager.sendMove(move.from.file, move.from.rank, move.to.file, move.to.rank, move.promotionPiece)
+            }
+        } else {
+            performMoveWithAnimation(move) {
+                checkPostMoveConditions()
+            }
         }
     }
 
@@ -393,6 +472,7 @@ class ChessViewModel @JvmOverloads constructor(
     }
 
     fun undoMove() {
+        if (settings.value.mode == GameMode.LOCAL_MULTIPLAYER) return
         if (isThinking.value || animationJob?.isActive == true) return
         val success = gameController.undoMove(settings.value.mode)
         if (success) {
@@ -403,6 +483,7 @@ class ChessViewModel @JvmOverloads constructor(
     }
 
     fun redoMove() {
+        if (settings.value.mode == GameMode.LOCAL_MULTIPLAYER) return
         if (isThinking.value || animationJob?.isActive == true) return
         val success = gameController.redoMove()
         if (success) {
@@ -411,6 +492,7 @@ class ChessViewModel @JvmOverloads constructor(
     }
 
     fun getHint() {
+        if (settings.value.mode == GameMode.LOCAL_MULTIPLAYER) return
         if (isThinking.value || gameState.value.isGameOver) return
         gameController.getHint(AIDifficulty.HARD) { bestMove ->
             if (bestMove != null) {
@@ -435,6 +517,17 @@ class ChessViewModel @JvmOverloads constructor(
         }
 
         gameController.restartGame(settings.value.timeControl)
+
+        if (settings.value.mode == GameMode.LOCAL_MULTIPLAYER && multiplayerManager.sessionState.value.role == MultiplayerRole.HOST) {
+            val snapshot = gameController.createSnapshot(
+                sequence = ++saveSequence,
+                mode = GameMode.LOCAL_MULTIPLAYER,
+                aiDifficulty = settings.value.aiDifficulty,
+                playerColor = PieceColor.WHITE,
+                timeControl = settings.value.timeControl
+            )
+            multiplayerManager.broadcastAuthoritativeState(GameSnapshotSerializer.serialize(snapshot))
+        }
     }
 
     private fun persistActiveGame() {
@@ -544,8 +637,177 @@ class ChessViewModel @JvmOverloads constructor(
         ShareAppHelper.shareApp(context, downloadUrl)
     }
 
+    // ==================== Local Multiplayer Handlers ====================
+
+    private fun handleOpponentMove(ff: Int, fr: Int, tf: Int, tr: Int, promo: PieceType?) {
+        val from = Square(ff, fr)
+        val to = Square(tf, tr)
+        val isHost = multiplayerManager.sessionState.value.role == MultiplayerRole.HOST
+
+        if (isHost) {
+            // Host is authoritative owner. Verify it is Black's turn and the move is legal.
+            if (gameState.value.activeColor != PieceColor.BLACK) {
+                syncAuthoritativeStateToClient()
+                return
+            }
+            val legalMoves = gameController.getLegalMoves(from)
+            val matchingMove = legalMoves.find { it.to == to && (promo == null || it.promotionPiece == promo) }
+            if (matchingMove != null) {
+                // Confirm move broadcast to client
+                multiplayerManager.sendMove(ff, fr, tf, tr, promo)
+                // Animate and apply on host
+                performMoveWithAnimation(matchingMove) {
+                    checkPostMoveConditions()
+                }
+            } else {
+                // Illegal move attempted by client; reject and resync authoritative snapshot
+                syncAuthoritativeStateToClient()
+            }
+        } else {
+            // Client received validated move from host.
+            val legalMoves = gameController.getLegalMoves(from)
+            val matchingMove = legalMoves.find { it.to == to && (promo == null || it.promotionPiece == promo) }
+            if (matchingMove != null) {
+                performMoveWithAnimation(matchingMove) {
+                    checkPostMoveConditions()
+                }
+            } else {
+                val piece = gameState.value.getPiece(from)
+                if (piece != null) {
+                    val directMove = Move(
+                        from = from,
+                        to = to,
+                        piece = piece,
+                        promotionPiece = promo
+                    )
+                    performMoveWithAnimation(directMove) {
+                        checkPostMoveConditions()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun syncAuthoritativeStateToClient() {
+        val currentSeq = ++saveSequence
+        val currentSettings = settings.value
+        val snapshot = gameController.createSnapshot(
+            sequence = currentSeq,
+            mode = currentSettings.mode,
+            aiDifficulty = currentSettings.aiDifficulty,
+            playerColor = currentSettings.playerColor,
+            timeControl = currentSettings.timeControl
+        )
+        val json = GameSnapshotSerializer.serialize(snapshot)
+        multiplayerManager.broadcastAuthoritativeState(json)
+    }
+
+    private fun handleAuthoritativeStateSync(snapshotJson: String) {
+        val snapshot = GameSnapshotSerializer.deserialize(snapshotJson) ?: return
+        val restored = GameSnapshotSerializer.reconstructGameState(snapshot) ?: return
+        gameController.restoreGame(restored, snapshot.timeControl)
+    }
+
+    // ==================== Local Multiplayer UI Actions ====================
+
+    fun openMultiplayerDialog() {
+        _showMultiplayerDialog.value = true
+    }
+
+    fun closeMultiplayerDialog() {
+        _showMultiplayerDialog.value = false
+    }
+
+    fun startMultiplayerDiscovery() {
+        multiplayerManager.startDiscovery()
+    }
+
+    fun stopMultiplayerDiscovery() {
+        multiplayerManager.stopDiscovery()
+    }
+
+    fun startHostingMultiplayer() {
+        val currentSettings = settings.value
+        updateSettings(currentSettings.copy(mode = GameMode.LOCAL_MULTIPLAYER, playerColor = PieceColor.WHITE))
+        _isFlipped.value = false
+        gameController.restartGame(currentSettings.timeControl)
+
+        val snapshot = gameController.createSnapshot(
+            sequence = ++saveSequence,
+            mode = GameMode.LOCAL_MULTIPLAYER,
+            aiDifficulty = currentSettings.aiDifficulty,
+            playerColor = PieceColor.WHITE,
+            timeControl = currentSettings.timeControl
+        )
+        multiplayerManager.startHosting(
+            hostName = "Player 1 (White)",
+            initialSnapshotJson = GameSnapshotSerializer.serialize(snapshot)
+        )
+    }
+
+    fun cancelHostingMultiplayer() {
+        multiplayerManager.disconnect()
+    }
+
+    fun joinMultiplayerMatch(address: String) {
+        val currentSettings = settings.value
+        updateSettings(currentSettings.copy(mode = GameMode.LOCAL_MULTIPLAYER, playerColor = PieceColor.BLACK))
+        _isFlipped.value = true // Client plays Black
+        multiplayerManager.joinGame(address, clientName = "Player 2 (Black)")
+    }
+
+    fun offerMultiplayerDraw() {
+        multiplayerManager.offerDraw()
+        _multiplayerNotice.value = "Draw offer sent to opponent"
+    }
+
+    fun acceptMultiplayerDraw() {
+        _showDrawOfferDialog.value = false
+        multiplayerManager.acceptDraw()
+        gameController.claimDraw()
+        _showGameOverDialog.value = true
+        _multiplayerNotice.value = "Draw accepted"
+    }
+
+    fun declineMultiplayerDraw() {
+        _showDrawOfferDialog.value = false
+        multiplayerManager.rejectDraw()
+        _multiplayerNotice.value = "Draw offer declined"
+    }
+
+    fun resignMultiplayer() {
+        val myRole = multiplayerManager.sessionState.value.role
+        val myColor = if (myRole == MultiplayerRole.HOST) PieceColor.WHITE else PieceColor.BLACK
+        multiplayerManager.resign()
+        gameController.resign(myColor)
+        _showGameOverDialog.value = true
+    }
+
+    fun leaveMultiplayerMatch() {
+        _showDisconnectionDialog.value = false
+        multiplayerManager.disconnect()
+        updateSettings(settings.value.copy(mode = GameMode.PVC))
+        _isFlipped.value = false
+        restartGame()
+    }
+
+    fun retryMultiplayerReconnect() {
+        _showDisconnectionDialog.value = false
+        val state = multiplayerManager.sessionState.value
+        if (state.role == MultiplayerRole.CLIENT && state.hostIp.isNotEmpty()) {
+            multiplayerManager.joinGame("${state.hostIp}:${state.port}", "Player 2 (Black)")
+        } else if (state.role == MultiplayerRole.HOST) {
+            startHostingMultiplayer()
+        }
+    }
+
+    fun clearMultiplayerNotice() {
+        _multiplayerNotice.value = null
+    }
+
     override fun onCleared() {
         super.onCleared()
+        multiplayerManager.disconnect()
         animationJob?.cancel()
         gameController.cleanup()
     }

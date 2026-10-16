@@ -109,6 +109,9 @@ fun ChessActionBar(
     onFlip: () -> Unit,
     onNewGame: () -> Unit,
     onSettings: () -> Unit,
+    isMultiplayer: Boolean = false,
+    onOfferDraw: () -> Unit = {},
+    onResign: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -118,43 +121,69 @@ fun ChessActionBar(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Undo
-        IconButton(
-            onClick = onUndo,
-            enabled = canUndo && !isThinking,
-            modifier = Modifier.size(44.dp).testTag("undo_button")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Undo,
-                contentDescription = "Undo Move",
-                tint = if (canUndo && !isThinking) Color(0xFFE2E8F0) else Color(0xFF475569)
-            )
-        }
+        if (isMultiplayer) {
+            // Resign Match
+            IconButton(
+                onClick = onResign,
+                modifier = Modifier.size(44.dp).testTag("resign_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Flag,
+                    contentDescription = "Resign Match",
+                    tint = Color(0xFFEF4444)
+                )
+            }
 
-        // Redo
-        IconButton(
-            onClick = onRedo,
-            enabled = canRedo && !isThinking,
-            modifier = Modifier.size(44.dp).testTag("redo_button")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Redo,
-                contentDescription = "Redo Move",
-                tint = if (canRedo && !isThinking) Color(0xFFE2E8F0) else Color(0xFF475569)
-            )
-        }
+            // Offer Draw
+            IconButton(
+                onClick = onOfferDraw,
+                modifier = Modifier.size(44.dp).testTag("offer_draw_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Handshake,
+                    contentDescription = "Offer Draw",
+                    tint = Color(0xFF38BDF8)
+                )
+            }
+        } else {
+            // Undo
+            IconButton(
+                onClick = onUndo,
+                enabled = canUndo && !isThinking,
+                modifier = Modifier.size(44.dp).testTag("undo_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Undo,
+                    contentDescription = "Undo Move",
+                    tint = if (canUndo && !isThinking) Color(0xFFE2E8F0) else Color(0xFF475569)
+                )
+            }
 
-        // Hint (AI suggestion)
-        IconButton(
-            onClick = onHint,
-            enabled = !isThinking,
-            modifier = Modifier.size(44.dp).testTag("hint_button")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Lightbulb,
-                contentDescription = "Get Hint",
-                tint = if (!isThinking) Color(0xFFFBBF24) else Color(0xFF475569)
-            )
+            // Redo
+            IconButton(
+                onClick = onRedo,
+                enabled = canRedo && !isThinking,
+                modifier = Modifier.size(44.dp).testTag("redo_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Redo,
+                    contentDescription = "Redo Move",
+                    tint = if (canRedo && !isThinking) Color(0xFFE2E8F0) else Color(0xFF475569)
+                )
+            }
+
+            // Hint (AI suggestion)
+            IconButton(
+                onClick = onHint,
+                enabled = !isThinking,
+                modifier = Modifier.size(44.dp).testTag("hint_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lightbulb,
+                    contentDescription = "Get Hint",
+                    tint = if (!isThinking) Color(0xFFFBBF24) else Color(0xFF475569)
+                )
+            }
         }
 
         // Themes Studio
