@@ -49,18 +49,42 @@ A modern, full-featured Android chess game built with Kotlin, Jetpack Compose, M
 - Procedural audio feedback for standard moves, captures, checks, castling, and game results.
 - Tactile haptic feedback for user interactions and key game events.
 
-### 💾 Persistent Preferences
-- All game preferences (board theme, piece style, AI difficulty, timer presets, animation speed, audio, and haptics) are saved and restored across sessions via `SettingsRepository`.
+### 💾 Isolated Persistence & Process Death Survival
+- **Preference Persistence (`SettingsRepository`)**: All user preferences (board theme, piece style, AI difficulty, timer presets, animation speed, audio, and haptics) are completely decoupled from UI logic and stored persistently.
+- **Active Game Session Survival (`ActiveGameRepository`)**: Matches automatically survive app backgrounding and Android process death. The full board position, active turn, move history, redo stack, and clock times are restored seamlessly upon relaunch.
+- **Deterministic State Reconstruction**: Replays validated move history from the initial layout to accurately reconstruct exact castling rights, en passant availability, captured pieces, and half/full-move counts.
+- **Concurrency & Monotonic Sequence Protection**: Monotonically increasing sequence counters (`saveSequence`) prevent out-of-order asynchronous snapshot writes from overwriting newer state.
+- **Process Death Clock Safety**: Timers are safely restored in a paused state, preventing unfair timeouts or flag falls while the application was inactive.
 
 ## Architecture & Code Quality
 
-- **MVVM + Clean Domain Separation**:
-  - `ChessEngine`: Pure chess rules, legal move generation, validation, and PGN generation.
-  - `ChessAI`: Minimax search and positional evaluation heuristics.
-  - `GameClock`: Dedicated coroutine-driven timer lifecycle manager.
+- **Pure Kotlin Domain Layer (`com.example.chess.domain`)**:
+  - `model/`: Immutable `BoardPosition`, `GameResult`, `CastlingRights`.
+  - `rules/`: Authoritative `MoveGenerator` (distinguishing pseudo-legal from fully legal moves with king safety ray checks), `CheckDetector`, `PositionValidator`, and `GameTerminationEvaluator` (checkmate, stalemate, draws).
+  - `history/`: `RepetitionTracker` (normalized position signatures, threefold claimable vs fivefold automatic) and `DrawRuleEvaluator` (insufficient material, 50-move claimable vs 75-move automatic).
+  - Zero Android dependencies, 100% deterministic, and shared across AI, game orchestration, and UI.
+- **MVVM + Clean Layer Separation**:
+  - `ChessEngine`: Facade providing backward-compatible APIs while delegating rule enforcement to `com.example.chess.domain`. Includes PGN generation.
+  - `ChessAI`: Alpha-beta minimax search with iterative deepening and positional heuristics on `Dispatchers.Default`.
+  - `GameClock`: Dedicated coroutine-driven timer lifecycle manager with pause/resume and active turn toggling.
   - `GameController`: Coordinates turns, moves, asynchronous AI worker lifecycles, and undo/redo history.
   - `SettingsRepository`: Data layer abstraction for preference persistence.
+  - `ActiveGameRepository`: Dedicated data layer abstraction for active match session persistence, move history serialization, and process death state reconstruction.
   - `ChessViewModel`: Focused presentation coordinator exposing reactive `StateFlow`s to Jetpack Compose.
-- **Tested**: Over 30 local JVM unit tests covering `GameClock`, `GameController`, `SettingsRepository`, and `ChessViewModel`.
+- **Lifecycle-Aware UI Observation**:
+  - Jetpack Compose screens observe all ViewModel flows via `collectAsStateWithLifecycle()`, guaranteeing that UI collection pauses when the app is stopped or in the background to prevent CPU and battery waste.
+  - Strict separation between durable domain data and transient UI-only state (animations, selections, promotion prompts, sound effects).
+- **Extensively Tested (88 tests)**:
+  - Domain tests: `MoveGeneratorTest`, `SpecialMovesTest`, `GameTerminationTest`, `PerftTest` (canonical node counts for initial position & Kiwipete).
+  - Application & Integration tests: `GameClockTest`, `GameControllerTest`, `SettingsRepositoryTest`, `ActiveGameRepositoryTest`, `ChessViewModelTest`, `ShareAppTest`, `GrandmasterTopAppBarTest` (Robolectric & Compose UI interaction tests).
+- **Responsive Top App Bar (`GrandmasterTopAppBar`)**:
+  - Material 3 responsive toolbar built with dynamic `BoxWithConstraints` and `Modifier.weight()` layout.
+  - Compact Difficulty Selector with dropdown menu for switching AI levels (Novice, Intermediate, Master) or 2-Player mode without text wrapping.
+  - Graceful single-line title handling and evenly distributed, vertically aligned action buttons with accessible 48dp touch targets.
+- **Native Android Sharesheet (`ShareAppHelper`)**:
+  - Implements implicit `Intent.ACTION_SEND` with `Intent.createChooser()` for sharing Grandmaster Chess across all compatible installed apps (WhatsApp, Telegram, Gmail, Messages, Quick Share, etc.).
+  - Accessible via the TopAppBar Share action button and the dedicated Game Settings card.
 
 For in-depth architectural details, see [architecture.md](architecture.md).
+
+

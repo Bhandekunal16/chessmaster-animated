@@ -137,10 +137,12 @@ data class GameState(
     val winner: PieceColor? = null,
     val whiteTimeSeconds: Int = 0,
     val blackTimeSeconds: Int = 0,
-    val isTimerRunning: Boolean = false
+    val isTimerRunning: Boolean = false,
+    val gameResult: com.example.chess.domain.model.GameResult = com.example.chess.domain.model.GameResult.Ongoing,
+    val positionSignatures: List<String> = emptyList()
 ) {
     val isGameOver: Boolean
-        get() = isCheckmate || isStalemate || isDraw
+        get() = isCheckmate || isStalemate || isDraw || gameResult.isGameOver
 
     fun getPiece(square: Square): Piece? = board[square.rank][square.file]
 
@@ -150,6 +152,17 @@ data class GameState(
                 board[r][f]
             }
         }
+    }
+
+    fun toBoardPosition(): com.example.chess.domain.model.BoardPosition {
+        return com.example.chess.domain.model.BoardPosition(
+            board = cloneBoard(),
+            activeColor = activeColor,
+            castlingRights = castlingRights,
+            enPassantTarget = enPassantTarget,
+            halfMoveClock = halfMoveClock,
+            fullMoveNumber = fullMoveNumber
+        )
     }
 
     override fun equals(other: Any?): Boolean {

@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">Grandmaster Chess</string>
+    <string name="share_app_title">Share App</string>
+    <string name="share_app_subject">Play Grandmaster Chess</string>
+    <string name="share_app_message">♟️ Play Grandmaster Chess! Challenge yourself, improve your chess skills, and enjoy playing chess against AI.\n\nDownload the app: %1$s</string>
+    <string name="share_app_chooser_title">Share Grandmaster Chess via</string>
+    <string name="share_app_description">Invite friends and fellow chess enthusiasts to play Grandmaster Chess on WhatsApp, Telegram, Gmail, Messages, and more.</string>
+    <string name="share_app_no_apps">No compatible apps found to share</string>
+    <string name="app_download_url">https://play.google.com/store/apps/details?id=com.aistudio.chessgame.rkzvpx</string>
 </resources>

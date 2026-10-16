@@ -209,5 +209,41 @@ class GameControllerTest {
         controller.cancelAIJob()
         assertFalse(controller.isThinking.value)
     }
+
+    @Test
+    fun testRestoreGameAndCreateSnapshot() = testScope.runTest {
+        val controller = GameController(scope = this, computeDispatcher = testDispatcher)
+
+        // Make move e4
+        val e4 = controller.getLegalMoves(Square.fromAlgebraic("e2")!!).first { it.to == Square.fromAlgebraic("e4")!! }
+        controller.applyMove(e4)
+
+        // Create snapshot
+        val snapshot = controller.createSnapshot(
+            sequence = 1L,
+            mode = GameMode.PVC,
+            aiDifficulty = AIDifficulty.MEDIUM,
+            playerColor = PieceColor.WHITE,
+            timeControl = TimeControl.RAPID_10
+        )
+
+        assertEquals(1, snapshot.moveHistory.size)
+        assertEquals(TimeControl.RAPID_10, snapshot.timeControl)
+
+        // Reset controller to a new game
+        controller.restartGame()
+        assertEquals(0, controller.gameState.value.moveHistory.size)
+
+        // Reconstruct and restore from snapshot
+        val reconstructed = com.example.chess.repository.GameSnapshotSerializer.reconstructGameState(snapshot)
+        assertNotNull(reconstructed)
+
+        controller.restoreGame(reconstructed!!, snapshot.timeControl)
+
+        assertEquals(1, controller.gameState.value.moveHistory.size)
+        assertEquals(PieceColor.BLACK, controller.gameState.value.activeColor)
+        assertFalse(controller.isThinking.value)
+        assertFalse(controller.gameState.value.isTimerRunning)
+    }
 }
 

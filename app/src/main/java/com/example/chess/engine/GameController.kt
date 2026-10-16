@@ -1,6 +1,8 @@
 package com.example.chess.engine
 
 import com.example.chess.model.*
+import com.example.chess.repository.ActiveGameSnapshot
+import com.example.chess.repository.SerializedMove
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -218,6 +220,75 @@ class GameController(
             whiteTimeSeconds = totalSec,
             blackTimeSeconds = totalSec,
             isTimerRunning = totalSec > 0
+        )
+    }
+
+    /**
+     * Restores authoritative [GameState] from persistent storage after process recreation.
+     * Cancels existing jobs, resets timers safely, and pauses the clock.
+     */
+    fun restoreGame(state: GameState, timeControl: TimeControl = TimeControl.UNLIMITED) {
+        cancelAiJob()
+        gameGeneration++
+        _isThinking.value = false
+
+        if (timeControl != TimeControl.UNLIMITED && timeControl.totalSeconds > 0) {
+            gameClock.start(
+                timeControl = timeControl,
+                initialColor = state.activeColor,
+                whiteSeconds = state.whiteTimeSeconds,
+                blackSeconds = state.blackTimeSeconds
+            )
+            gameClock.pause()
+        } else {
+            gameClock.stop()
+        }
+
+        _gameState.value = state.copy(
+            isTimerRunning = false
+        )
+    }
+
+    /**
+     * Creates an [ActiveGameSnapshot] of the current authoritative game state.
+     */
+    fun createSnapshot(
+        sequence: Long,
+        mode: GameMode,
+        aiDifficulty: AIDifficulty,
+        playerColor: PieceColor,
+        timeControl: TimeControl
+    ): ActiveGameSnapshot {
+        val state = _gameState.value
+        return ActiveGameSnapshot(
+            schemaVersion = 1,
+            saveSequence = sequence,
+            mode = mode,
+            aiDifficulty = aiDifficulty,
+            playerColor = playerColor,
+            timeControl = timeControl,
+            whiteTimeSeconds = state.whiteTimeSeconds,
+            blackTimeSeconds = state.blackTimeSeconds,
+            isTimerRunning = state.isTimerRunning,
+            moveHistory = state.moveHistory.map { m ->
+                SerializedMove(
+                    fromFile = m.from.file,
+                    fromRank = m.from.rank,
+                    toFile = m.to.file,
+                    toRank = m.to.rank,
+                    promotionPiece = m.promotionPiece
+                )
+            },
+            redoHistory = state.redoHistory.map { m ->
+                SerializedMove(
+                    fromFile = m.from.file,
+                    fromRank = m.from.rank,
+                    toFile = m.to.file,
+                    toRank = m.to.rank,
+                    promotionPiece = m.promotionPiece
+                )
+            },
+            timestamp = System.currentTimeMillis()
         )
     }
 

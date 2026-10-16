@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ fun SettingsDialog(
     var is3D by remember { mutableStateOf(currentSettings.is3DView) }
     var timeControl by remember { mutableStateOf(currentSettings.timeControl) }
     var syncEffects by remember { mutableStateOf(currentSettings.syncThemeEffects) }
+    val context = LocalContext.current
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -121,15 +123,30 @@ fun SettingsDialog(
                             )
                         }
                     }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("close_settings_button")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close Settings",
-                            tint = Color(0xFFCBD5E1)
-                        )
+                        IconButton(
+                            onClick = { ShareAppHelper.shareApp(context) },
+                            modifier = Modifier.testTag("settings_header_share_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share App",
+                                tint = Color(0xFF38BDF8)
+                            )
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.testTag("close_settings_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Settings",
+                                tint = Color(0xFFCBD5E1)
+                            )
+                        }
                     }
                 }
 
@@ -138,7 +155,8 @@ fun SettingsDialog(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = 20.dp)
+                        .testTag("settings_lazy_column"),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                     contentPadding = PaddingValues(vertical = 18.dp)
                 ) {
@@ -452,6 +470,88 @@ fun SettingsDialog(
                                     checked = syncEffects,
                                     onCheckedChange = { syncEffects = it }
                                 )
+                            }
+                        }
+                    }
+
+                    // Section 8: Share App & Community
+                    item {
+                        SettingsSectionHeader(
+                            icon = Icons.Default.Share,
+                            title = "Share App",
+                            subtitle = "Invite friends & challenge fellow chess enthusiasts"
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.fillMaxWidth().testTag("settings_share_app_card")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Surface(
+                                        color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = null,
+                                                tint = Color(0xFF38BDF8),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Grandmaster Chess",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "Share with all compatible apps including WhatsApp, Telegram, Gmail, Messages & Nearby Share.",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF94A3B8),
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { ShareAppHelper.shareApp(context) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp)
+                                        .testTag("settings_share_app_button"),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF0284C7),
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "Share App",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                     }

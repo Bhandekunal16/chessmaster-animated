@@ -152,4 +152,59 @@ class ChessViewModelTest {
         assertNotNull(createdVm)
         assertNotNull(createdVm.gameState.value)
     }
+
+    @Test
+    fun testViewModelCompanionFactory() {
+        val factory = ChessViewModel.provideFactory(app)
+        val createdVm = factory.create(ChessViewModel::class.java)
+        assertNotNull(createdVm)
+        assertNotNull(createdVm.gameState.value)
+    }
+
+    @Test
+    fun testActiveGameRestorationOnRecreation() {
+        val fakeActiveRepo = com.example.chess.repository.FakeActiveGameRepository()
+        kotlinx.coroutines.runBlocking {
+            fakeActiveRepo.saveActiveGame(
+                com.example.chess.repository.ActiveGameSnapshot(
+                    schemaVersion = 1,
+                    saveSequence = 1L,
+                    mode = GameMode.PVC,
+                    aiDifficulty = AIDifficulty.HARD,
+                    timeControl = TimeControl.RAPID_10,
+                    whiteTimeSeconds = 540,
+                    blackTimeSeconds = 600,
+                    moveHistory = listOf(
+                        com.example.chess.repository.SerializedMove(4, 1, 4, 3) // 1. e4
+                    )
+                )
+            )
+        }
+
+        val restoredVm = ChessViewModel(
+            application = app,
+            settingsRepository = settingsRepo,
+            gameController = GameController(),
+            activeGameRepository = fakeActiveRepo,
+            ioDispatcher = kotlinx.coroutines.Dispatchers.Unconfined
+        )
+
+        kotlinx.coroutines.runBlocking {
+            restoredVm.restorationJob?.join()
+        }
+
+        val state = restoredVm.gameState.value
+        assertEquals(1, state.moveHistory.size)
+        assertEquals(PieceColor.BLACK, state.activeColor)
+        assertEquals(540, state.whiteTimeSeconds)
+
+        // Transient presentation state must be clean
+        assertNull(restoredVm.selectedSquare.value)
+        assertTrue(restoredVm.legalMovesForSelected.value.isEmpty())
+        assertNull(restoredVm.animatedPiece.value)
+        assertNull(restoredVm.defeatedPiece.value)
+        assertNull(restoredVm.impactEffect.value)
+        assertFalse(restoredVm.isThinking.value)
+        assertFalse(restoredVm.showGameOverDialog.value)
+    }
 }
