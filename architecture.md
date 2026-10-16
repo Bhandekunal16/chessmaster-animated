@@ -223,7 +223,7 @@ The application isolates all chess logic, board representations, move generation
 
 ## Testing Architecture
 
-Comprehensive local JVM unit tests (83 tests in total) cover all layers:
+Comprehensive local JVM unit tests (88 tests in total) cover all layers:
 - **`MoveGeneratorTest`**: Verifies legal move generation across starting position, piece pins along attack rays, discovered check detection, double checks forcing king moves, and attacks preventing king escapes.
 - **`SpecialMovesTest`**: Verifies castling (kingside/queenside, in check, through check, rights lost on rook capture), en passant (validity window, expiration, horizontal ray pin protection), and pawn promotion (quiet, capture, all 4 pieces).
 - **`GameTerminationTest`**: Verifies Fool's Mate checkmate, classic stalemate, insufficient material variations, 50-move claimable vs 75-move automatic draws, threefold claimable vs fivefold automatic repetition, and checkmate precedence.
@@ -234,6 +234,7 @@ Comprehensive local JVM unit tests (83 tests in total) cover all layers:
 - **`ActiveGameRepositoryTest`**: Verifies JSON serialization round-trips, deterministic state reconstruction, schema version rejection, sequence-based out-of-order write rejection, and active game clearing.
 - **`ChessViewModelTest`**: Verifies UI state flows, square selections, promotion dialog flows, board orientation toggles, factory instantiation (`AndroidViewModelFactory`), active game restoration on process recreation, and delegation to underlying controllers.
 - **`ShareAppTest`**: Verifies native Android Sharesheet integration, `ACTION_SEND` intent creation, `text/plain` MIME typing, chooser creation with `FLAG_ACTIVITY_NEW_TASK`, promotional message formatting, ViewModel delegation, and Compose UI interactions in TopAppBar and Settings.
+- **`GrandmasterTopAppBarTest`**: Verifies responsive toolbar layout, single-line difficulty labels ("Novice", "Intermediate", "Master", "2 Players"), interactive dropdown menu selection, and action button callbacks.
 - **`ExampleUnitTest`**: Verifies core chess engine rules, checkmate detection, legal move generators, and AI search results.
 
 

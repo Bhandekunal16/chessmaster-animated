@@ -50,53 +50,14 @@ fun ChessScreen(
             .background(Color(0xFF0A0F1D)),
         containerColor = Color(0xFF0A0F1D),
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Grandmaster Chess",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF8FAFC)
-                        )
-                        Surface(
-                            color = Color(0xFF0284C7),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = if (settings.mode == GameMode.PVC) settings.aiDifficulty.label else "2 Players",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.openThemeDialog() }, modifier = Modifier.testTag("top_themes_button")) {
-                        Icon(Icons.Default.Palette, contentDescription = "Themes", tint = Color(0xFF38BDF8))
-                    }
-                    IconButton(onClick = { viewModel.openPgn() }, modifier = Modifier.testTag("pgn_button")) {
-                        Icon(Icons.Default.Description, contentDescription = "PGN Export", tint = Color(0xFF94A3B8))
-                    }
-                    IconButton(
-                        onClick = { ShareAppHelper.shareApp(context) },
-                        modifier = Modifier.testTag("top_share_app_button")
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "Share App", tint = Color(0xFF38BDF8))
-                    }
-                    IconButton(onClick = { viewModel.openSettings() }, modifier = Modifier.testTag("top_settings_button")) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF94A3B8))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0F172A),
-                    titleContentColor = Color.White
-                )
+            GrandmasterTopAppBar(
+                settings = settings,
+                onDifficultySelected = { diff -> viewModel.setDifficulty(diff) },
+                onModeSelected = { mode -> viewModel.setGameMode(mode) },
+                onThemeClick = { viewModel.openThemeDialog() },
+                onPgnClick = { viewModel.openPgn() },
+                onShareClick = { ShareAppHelper.shareApp(context) },
+                onSettingsClick = { viewModel.openSettings() }
             )
         }
     ) { innerPadding ->

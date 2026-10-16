@@ -74,9 +74,13 @@ A modern, full-featured Android chess game built with Kotlin, Jetpack Compose, M
 - **Lifecycle-Aware UI Observation**:
   - Jetpack Compose screens observe all ViewModel flows via `collectAsStateWithLifecycle()`, guaranteeing that UI collection pauses when the app is stopped or in the background to prevent CPU and battery waste.
   - Strict separation between durable domain data and transient UI-only state (animations, selections, promotion prompts, sound effects).
-- **Extensively Tested (83 tests)**:
+- **Extensively Tested (88 tests)**:
   - Domain tests: `MoveGeneratorTest`, `SpecialMovesTest`, `GameTerminationTest`, `PerftTest` (canonical node counts for initial position & Kiwipete).
-  - Application & Integration tests: `GameClockTest`, `GameControllerTest`, `SettingsRepositoryTest`, `ActiveGameRepositoryTest`, `ChessViewModelTest`, `ShareAppTest` (Robolectric & Compose UI interaction tests).
+  - Application & Integration tests: `GameClockTest`, `GameControllerTest`, `SettingsRepositoryTest`, `ActiveGameRepositoryTest`, `ChessViewModelTest`, `ShareAppTest`, `GrandmasterTopAppBarTest` (Robolectric & Compose UI interaction tests).
+- **Responsive Top App Bar (`GrandmasterTopAppBar`)**:
+  - Material 3 responsive toolbar built with dynamic `BoxWithConstraints` and `Modifier.weight()` layout.
+  - Compact Difficulty Selector with dropdown menu for switching AI levels (Novice, Intermediate, Master) or 2-Player mode without text wrapping.
+  - Graceful single-line title handling and evenly distributed, vertically aligned action buttons with accessible 48dp touch targets.
 - **Native Android Sharesheet (`ShareAppHelper`)**:
   - Implements implicit `Intent.ACTION_SEND` with `Intent.createChooser()` for sharing Grandmaster Chess across all compatible installed apps (WhatsApp, Telegram, Gmail, Messages, Quick Share, etc.).
   - Accessible via the TopAppBar Share action button and the dedicated Game Settings card.

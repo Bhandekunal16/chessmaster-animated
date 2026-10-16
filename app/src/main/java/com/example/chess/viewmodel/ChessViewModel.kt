@@ -466,6 +466,16 @@ class ChessViewModel @JvmOverloads constructor(
         }
     }
 
+    fun setDifficulty(difficulty: AIDifficulty) {
+        val current = settings.value
+        updateSettings(current.copy(aiDifficulty = difficulty, mode = GameMode.PVC))
+    }
+
+    fun setGameMode(mode: GameMode) {
+        val current = settings.value
+        updateSettings(current.copy(mode = mode))
+    }
+
     fun openSettings() {
         _showSettingsDialog.value = true
     }
