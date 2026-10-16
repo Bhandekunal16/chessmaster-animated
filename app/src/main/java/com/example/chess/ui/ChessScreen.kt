@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ fun ChessScreen(
 ) {
     val gameState by viewModel.gameState.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val selectedSquare by viewModel.selectedSquare.collectAsStateWithLifecycle()
     val legalMoves by viewModel.legalMovesForSelected.collectAsStateWithLifecycle()
     val animatedPiece by viewModel.animatedPiece.collectAsStateWithLifecycle()
@@ -79,7 +81,13 @@ fun ChessScreen(
                         Icon(Icons.Default.Palette, contentDescription = "Themes", tint = Color(0xFF38BDF8))
                     }
                     IconButton(onClick = { viewModel.openPgn() }, modifier = Modifier.testTag("pgn_button")) {
-                        Icon(Icons.Default.Share, contentDescription = "PGN Export", tint = Color(0xFF94A3B8))
+                        Icon(Icons.Default.Description, contentDescription = "PGN Export", tint = Color(0xFF94A3B8))
+                    }
+                    IconButton(
+                        onClick = { ShareAppHelper.shareApp(context) },
+                        modifier = Modifier.testTag("top_share_app_button")
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "Share App", tint = Color(0xFF38BDF8))
                     }
                     IconButton(onClick = { viewModel.openSettings() }, modifier = Modifier.testTag("top_settings_button")) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF94A3B8))

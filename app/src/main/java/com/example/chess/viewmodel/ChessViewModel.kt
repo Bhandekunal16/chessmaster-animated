@@ -4,15 +4,17 @@ import android.app.Application
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.chess.animation.*
 import com.example.chess.audio.ChessSoundPlayer
 import com.example.chess.engine.GameClock
 import com.example.chess.engine.GameController
 import com.example.chess.model.*
-import com.example.chess.repository.SettingsRepository
-import com.example.chess.repository.SharedPreferencesSettingsRepository
+import com.example.chess.repository.*
 import com.example.chess.types.*
+import com.example.chess.ui.ShareAppHelper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.update
  * - UI interaction processing and event dispatching.
  * - Delegating core chess operations to [GameController].
  * - Delegating user preferences to [SettingsRepository].
+ * - Delegating active game session persistence to [ActiveGameRepository].
  * - Coordinating visual animation interpolations and sound effects.
  */
 class ChessViewModel @JvmOverloads constructor(
@@ -35,13 +38,24 @@ class ChessViewModel @JvmOverloads constructor(
         application.getSharedPreferences(SharedPreferencesSettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
     ),
     private val gameController: GameController = GameController(),
-    private val soundPlayer: ChessSoundPlayer = ChessSoundPlayer(application)
+    private val soundPlayer: ChessSoundPlayer = ChessSoundPlayer(application),
+    private val activeGameRepository: ActiveGameRepository? = SharedPreferencesActiveGameRepository(
+        application.getSharedPreferences(SharedPreferencesActiveGameRepository.PREFS_NAME, Context.MODE_PRIVATE)
+    ),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : AndroidViewModel(application) {
 
     // Domain state delegated to GameController and SettingsRepository
     val gameState: StateFlow<GameState> = gameController.gameState
     val settings: StateFlow<GameSettings> = settingsRepository.settings
     val isThinking: StateFlow<Boolean> = gameController.isThinking
+
+    // Monotonic sequence counter to guarantee older async persistence writes cannot overwrite newer state
+    private var saveSequence: Long = 0L
+
+    // Active restoration job handle (for lifecycle tracking and deterministic testing)
+    var restorationJob: Job? = null
+        private set
 
     // Presentation-only state
     private val _selectedSquare = MutableStateFlow<Square?>(null)
@@ -83,18 +97,45 @@ class ChessViewModel @JvmOverloads constructor(
     private var animationJob: Job? = null
 
     init {
-        // Synchronize initial time control
-        val initialTimeControl = settingsRepository.settings.value.timeControl
-        if (initialTimeControl != TimeControl.UNLIMITED) {
-            gameController.restartGame(initialTimeControl)
+        // Attempt active game state restoration across process recreation
+        if (activeGameRepository != null) {
+            restorationJob = viewModelScope.launch {
+                val savedSnapshot = withContext(ioDispatcher) {
+                    activeGameRepository.loadActiveGame()
+                }
+                if (savedSnapshot != null && savedSnapshot.moveHistory.isNotEmpty()) {
+                    val restoredState = withContext(ioDispatcher) {
+                        GameSnapshotSerializer.reconstructGameState(savedSnapshot)
+                    }
+                    if (restoredState != null) {
+                        saveSequence = savedSnapshot.saveSequence
+                        gameController.restoreGame(restoredState, savedSnapshot.timeControl)
+                        return@launch
+                    }
+                }
+
+                // If no active saved game or snapshot corrupted, synchronize initial time control
+                val initialTimeControl = settingsRepository.settings.value.timeControl
+                if (initialTimeControl != TimeControl.UNLIMITED) {
+                    gameController.restartGame(initialTimeControl)
+                }
+            }
+        } else {
+            // Synchronize initial time control
+            val initialTimeControl = settingsRepository.settings.value.timeControl
+            if (initialTimeControl != TimeControl.UNLIMITED) {
+                gameController.restartGame(initialTimeControl)
+            }
         }
 
-        // Listen for game-over state transitions (e.g., timeout or checkmate)
+        // Listen for game-over state transitions safely (one-time event on transition)
         viewModelScope.launch {
+            var previousGameOver = false
             gameController.gameState.collect { state ->
-                if (state.isGameOver && !_showGameOverDialog.value) {
+                if (state.isGameOver && !previousGameOver && !_showGameOverDialog.value) {
                     _showGameOverDialog.value = true
                 }
+                previousGameOver = state.isGameOver
             }
         }
     }
@@ -308,6 +349,8 @@ class ChessViewModel @JvmOverloads constructor(
         val applied = gameController.applyMove(move)
         if (!applied) return
 
+        persistActiveGame()
+
         val next = gameState.value
         val isSound = settings.value.soundEnabled
         val isHaptics = settings.value.hapticsEnabled
@@ -355,12 +398,16 @@ class ChessViewModel @JvmOverloads constructor(
         if (success) {
             _selectedSquare.value = null
             _legalMovesForSelected.value = emptyList()
+            persistActiveGame()
         }
     }
 
     fun redoMove() {
         if (isThinking.value || animationJob?.isActive == true) return
-        gameController.redoMove()
+        val success = gameController.redoMove()
+        if (success) {
+            persistActiveGame()
+        }
     }
 
     fun getHint() {
@@ -383,7 +430,27 @@ class ChessViewModel @JvmOverloads constructor(
         _impactEffect.value = null
         _showGameOverDialog.value = false
 
+        viewModelScope.launch(Dispatchers.IO) {
+            activeGameRepository?.clearActiveGame()
+        }
+
         gameController.restartGame(settings.value.timeControl)
+    }
+
+    private fun persistActiveGame() {
+        val repo = activeGameRepository ?: return
+        val currentSeq = ++saveSequence
+        val currentSettings = settings.value
+        val snapshot = gameController.createSnapshot(
+            sequence = currentSeq,
+            mode = currentSettings.mode,
+            aiDifficulty = currentSettings.aiDifficulty,
+            playerColor = currentSettings.playerColor,
+            timeControl = currentSettings.timeControl
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.saveActiveGame(snapshot)
+        }
     }
 
     // ==================== Settings & Dialogs ====================
@@ -460,9 +527,41 @@ class ChessViewModel @JvmOverloads constructor(
         return gameController.exportPgn(whitePlayer, blackPlayer)
     }
 
+    /**
+     * Triggers the Android native Sharesheet to share Grandmaster Chess.
+     */
+    fun shareApp(context: Context, downloadUrl: String = ShareAppHelper.DEFAULT_DOWNLOAD_URL) {
+        ShareAppHelper.shareApp(context, downloadUrl)
+    }
+
     override fun onCleared() {
         super.onCleared()
         animationJob?.cancel()
         gameController.cleanup()
+    }
+
+    companion object {
+        fun provideFactory(
+            application: Application,
+            settingsRepository: SettingsRepository? = null,
+            gameController: GameController? = null,
+            soundPlayer: ChessSoundPlayer? = null,
+            activeGameRepository: ActiveGameRepository? = null
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ChessViewModel(
+                    application = application,
+                    settingsRepository = settingsRepository ?: SharedPreferencesSettingsRepository(
+                        application.getSharedPreferences(SharedPreferencesSettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+                    ),
+                    gameController = gameController ?: GameController(),
+                    soundPlayer = soundPlayer ?: ChessSoundPlayer(application),
+                    activeGameRepository = activeGameRepository ?: SharedPreferencesActiveGameRepository(
+                        application.getSharedPreferences(SharedPreferencesActiveGameRepository.PREFS_NAME, Context.MODE_PRIVATE)
+                    )
+                ) as T
+            }
+        }
     }
 }

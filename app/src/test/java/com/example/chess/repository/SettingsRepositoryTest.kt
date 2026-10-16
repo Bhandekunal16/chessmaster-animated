@@ -109,4 +109,65 @@ class SettingsRepositoryTest {
         assertTrue(loaded.is3DView)
         assertFalse(loaded.syncThemeEffects)
     }
+
+    @Test
+    fun testInvalidOrOutdatedStoredValues() {
+        val prefs = context.getSharedPreferences(SharedPreferencesSettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Seed invalid / out of bounds ordinals
+        prefs.edit()
+            .putInt(SharedPreferencesSettingsRepository.KEY_THEME, 999) // Out of bounds
+            .putInt(SharedPreferencesSettingsRepository.KEY_PIECE_SET, -1) // Negative
+            .putInt(SharedPreferencesSettingsRepository.KEY_MODE, 50)
+            .putInt(SharedPreferencesSettingsRepository.KEY_DIFFICULTY, 100)
+            .putInt(SharedPreferencesSettingsRepository.KEY_SPEED, 25)
+            .putInt(SharedPreferencesSettingsRepository.KEY_TIME_CONTROL, 99)
+            .commit()
+
+        val repo = SharedPreferencesSettingsRepository(prefs)
+        val loaded = repo.loadSettings()
+
+        // Should safely fallback to defaults
+        assertEquals(BoardTheme.CLASSIC_WOOD, loaded.boardTheme)
+        assertEquals(PieceSet.CLASSIC_STAUNTON, loaded.pieceSet)
+        assertEquals(GameMode.PVC, loaded.mode)
+        assertEquals(AIDifficulty.MEDIUM, loaded.aiDifficulty)
+        assertEquals(AnimationSpeed.NORMAL, loaded.animationSpeed)
+        assertEquals(TimeControl.UNLIMITED, loaded.timeControl)
+    }
+
+    @Test
+    fun testResetToDefaults() {
+        repository.updateSettings(
+            GameSettings(
+                mode = GameMode.PVP,
+                aiDifficulty = AIDifficulty.HARD,
+                soundEnabled = false
+            )
+        )
+        assertFalse(repository.settings.value.soundEnabled)
+
+        repository.resetToDefaults()
+
+        assertEquals(GameSettings(), repository.settings.value)
+        assertEquals(GameSettings(), repository.loadSettings())
+    }
+
+    @Test
+    fun testFakeSettingsRepository() {
+        val fakeRepo = FakeSettingsRepository()
+        assertEquals(GameSettings(), fakeRepo.loadSettings())
+        assertEquals(GameSettings(), fakeRepo.settings.value)
+
+        val custom = GameSettings(
+            boardTheme = BoardTheme.MIDNIGHT,
+            soundEnabled = false
+        )
+        fakeRepo.updateSettings(custom)
+        assertEquals(custom, fakeRepo.settings.value)
+        assertEquals(custom, fakeRepo.loadSettings())
+
+        fakeRepo.resetToDefaults()
+        assertEquals(GameSettings(), fakeRepo.settings.value)
+    }
 }
